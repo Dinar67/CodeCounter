@@ -19,8 +19,9 @@
 
             <HBox alignment="CENTER" spacing="20">
                 <children>
-                    <Button fx:id="chooseDirBtn" minHeight="30" mnemonicParsing="false" onMouseClicked="#chooseDir" prefHeight="35.0" prefWidth="200.0" text="Выбрать папку с проектом" />
-                    <Button fx:id="analyzeBtn" minHeight="30" mnemonicParsing="false" onMouseClicked="#analyzeFiles" prefHeight="35.0" prefWidth="200.0" text="Анализировать выбранные файлы" />
+                    <Button fx:id="chooseDirBtn" minHeight="30" mnemonicParsing="false" onMouseClicked="#chooseDir" prefHeight="35.0" prefWidth="200.0" text="Выбрать папку" />
+                    <Button fx:id="analyzeBtn" minHeight="30" mnemonicParsing="false" onMouseClicked="#analyzeFiles" prefHeight="35.0" prefWidth="200.0" text="Анализировать файлы" />
+
                 </children>
                 <VBox.margin>
                     <Insets top="10.0" />

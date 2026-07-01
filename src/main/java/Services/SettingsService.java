@@ -12,7 +12,6 @@ public class SettingsService implements IService {
     }
 
     private void loadSettings() { }
-
     private void saveSettings() { }
 
     public IAnalyzeOutputStrategy getOutputStrategy() { return outputStrategy; }

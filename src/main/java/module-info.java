@@ -14,5 +14,6 @@ module com.example.codecounter {
     requires org.apache.commons.collections4;
 
     opens com.example.codecounter to javafx.fxml;
+    opens images to javafx.fxml, javafx.graphics;
     exports com.example.codecounter;
 }

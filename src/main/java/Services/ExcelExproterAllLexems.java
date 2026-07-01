@@ -14,8 +14,8 @@ import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class ExcelExproter implements IService {
-    public ExcelExproter(){}
+public class ExcelExproterAllLexems implements IService {
+    public ExcelExproterAllLexems(){}
 
     public void exportWorkbook(String outputPath, boolean sorted, Map<File, List<Token>> fileTokensMap) throws IOException {
         Workbook workbook = new XSSFWorkbook();

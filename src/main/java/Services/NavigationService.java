@@ -3,8 +3,10 @@ package Services;
 import Interfaces.IService;
 import com.example.codecounter.CodeCounterApplication;
 import com.example.codecounter.MainPageController;
+import com.example.codecounter.SettingsStageController;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
 
 import java.io.IOException;
@@ -12,8 +14,10 @@ import java.util.HashMap;
 
 public class NavigationService implements IService {
     private Stage _mainStage;
+    private Scene _currentScene;
     private HashMap<Class, String> _pageResource = new HashMap<>(){{
        put(MainPageController.class, "MainPage.fxml");
+       put(SettingsStageController.class, "SettingsStage.fxml");
     }};
 
     public NavigationService(Stage stage){
@@ -24,5 +28,19 @@ public class NavigationService implements IService {
         FXMLLoader fxmlLoader = new FXMLLoader(CodeCounterApplication.class.getResource(_pageResource.get(pageController)));
         Scene scene = new Scene(fxmlLoader.load());
         _mainStage.setScene(scene);
+        _currentScene = scene;
     }
+
+    public void openModalWindow(Class<?> pageController) throws IOException {
+        FXMLLoader fxmlLoader = new FXMLLoader(CodeCounterApplication.class.getResource(_pageResource.get(pageController)));
+        Scene scene = new Scene(fxmlLoader.load());
+        Stage stage = new Stage();
+        stage.setScene(scene);
+        stage.initModality(Modality.APPLICATION_MODAL);
+        stage.initOwner(_mainStage);
+
+        stage.showAndWait();
+    }
+
+    public Scene currentScene() { return _currentScene; }
 }

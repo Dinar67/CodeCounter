@@ -1,17 +1,23 @@
 package com.example.codecounter;
 
+import Classes.DetailedAnalyzeOutputStrategy;
+import Interfaces.IAnalyzeOutputStrategy;
 import LanguageLexer.LanguageToken.Token;
 import LanguageLexer.LanguageToken.TokenType;
 import LanguageLexer.Languages.JavaLanguage.JavaLanguage;
 import LanguageLexer.Lexer.RegexLexer;
-import Services.ExcelExproter;
+import Services.ExcelExproterAllLexems;
 import Services.FileManager;
+import Services.NavigationService;
+import Services.SettingsService;
 import javafx.beans.value.ObservableValue;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.CheckBoxListCell;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.util.Callback;
 
 import java.io.File;
@@ -25,6 +31,7 @@ public class MainPageController {
     @FXML  protected ListView<FileItem> fileListView;
     @FXML protected TextArea outputArea;
     @FXML protected Button analyzeBtn;
+    @FXML protected Button settingsBtn;
     @FXML protected Button exportBtn;
     @FXML protected Button exportSortedBtn;
     @FXML protected Button selectAllBtn;
@@ -33,6 +40,22 @@ public class MainPageController {
     private ObservableList<FileItem> fileItems = FXCollections.observableArrayList();
     private Map<File, List<Token>> fileTokensMap = new HashMap<>();
     private Map<File, String> fileCodeMap = new HashMap<>();
+
+    @FXML
+    protected void initialize(){
+        var image = new Image(getClass().getResourceAsStream("/images/settings_icon.png"));
+        ImageView imageView = new ImageView(image);
+        imageView.setFitWidth(20);
+        imageView.setFitHeight(20);
+        imageView.setPreserveRatio(true);
+        settingsBtn.setGraphic(imageView);
+    }
+
+    @FXML
+    protected void openSettings() throws IOException {
+        var navService = CodeCounterApplication.SERVICE_MANAGER.getService(NavigationService.class);
+        navService.openModalWindow(SettingsStageController.class);
+    }
 
     @FXML
     protected void chooseDir() throws IOException {
@@ -133,7 +156,7 @@ public class MainPageController {
     @FXML
     protected void analyzeFiles() throws IOException {
         List<File> selectedFiles = getSelectedFiles();
-
+        var settings = CodeCounterApplication.SERVICE_MANAGER.getService(SettingsService.class);
         if (selectedFiles.isEmpty()) {
             outputArea.setText("Выберите хотя бы один файл для анализа!");
             return;
@@ -143,98 +166,16 @@ public class MainPageController {
         fileCodeMap.clear();
 
         RegexLexer lexer = new RegexLexer(new JavaLanguage());
-        StringBuilder fullResult = new StringBuilder();
 
-        //Общая статистика по всем файлам
-        Map<TokenType, Integer> totalCounter = new HashMap<>();
-
-        fullResult.append("=== АНАЛИЗ ВЫБРАННЫХ ФАЙЛОВ ===\n");
-        fullResult.append("Всего файлов: ").append(selectedFiles.size()).append("\n");
-        fullResult.append("=".repeat(40)).append("\n\n");
-
-        //Анализируем каждый выбранный файл
         for (File file : selectedFiles) {
-            try {
-                String code = Files.readString(file.toPath());
-                fileCodeMap.put(file, code);
-
-                var tokens = lexer.tokenize(code);
-                fileTokensMap.put(file, tokens);
-
-                //Статистика для текущего файла
-                Map<TokenType, Integer> fileCounter = new HashMap<>();
-                tokens.forEach(token -> {
-                    fileCounter.merge(token.getType(), 1, Integer::sum);
-                    totalCounter.merge(token.getType(), 1, Integer::sum);
-                });
-
-                fullResult.append("========================================\n");
-                fullResult.append("ФАЙЛ: ").append(file.getName()).append("\n");
-                fullResult.append("----------------------------------------\n");
-                fullResult.append("Всего токенов: ").append(tokens.size()).append("\n");
-                fullResult.append("Статистика:\n");
-                for (TokenType type : TokenType.values()) {
-                    if (type != TokenType.WHITESPACE) {
-                        int count = fileCounter.getOrDefault(type, 0);
-                        if (count > 0) {
-                            fullResult.append("  ").append(type).append(": ").append(count).append("\n");
-                        }
-                    }
-                }
-
-                // ВЫВОД ВСЕХ ЛЕКСЕМ
-                fullResult.append("----------------------------------------\n");
-                fullResult.append("ВСЕ ЛЕКСЕМЫ:\n");
-                fullResult.append("----------------------------------------\n");
-
-                int tokenNumber = 1;
-                for (Token token : tokens) {
-                    if (token.getType() != TokenType.WHITESPACE) {
-                        String value = token.getValue()
-                                .replace("\n", "\\n")
-                                .replace("\r", "\\r");
-
-                        // Обрезаем слишком длинные значения для читаемости
-                        if (value.length() > 50) {
-                            value = value.substring(0, 47) + "...";
-                        }
-
-                        fullResult.append(String.format("%4d. %-12s  %s\n",
-                                tokenNumber++,
-                                token.getType().toString(),
-                                value
-                        ));
-                    }
-                }
-                fullResult.append("\n");
-
-            } catch (IOException e) {
-                fullResult.append("ОШИБКА при чтении файла ").append(file.getName())
-                        .append(": ").append(e.getMessage()).append("\n\n");
-            }
+            String code = Files.readString(file.toPath());
+            fileCodeMap.put(file, code);
+            fileTokensMap.put(file, lexer.tokenize(code));
         }
 
-        // Общая статистика
-        fullResult.append("========================================\n");
 
-        int totalTokens = totalCounter.values().stream().mapToInt(Integer::intValue).sum();
+        outputArea.setText(settings.getOutputStrategy().makeAnalyzeOutput(new HashMap<>(fileTokensMap)));
 
-        String generalResult = "";
-
-        for (TokenType type : TokenType.values()) {
-            if (type != TokenType.WHITESPACE) {
-                int count = totalCounter.getOrDefault(type, 0);
-                generalResult += "\t" + type.toString() + ": " + count + "\n";
-            }
-        }
-        fullResult.insert(0, "\n\n");
-        fullResult.insert(0, generalResult);
-        fullResult.insert(0, "Всего токенов: " + totalTokens + "\n");
-        fullResult.insert(0, "=== ОБЩАЯ СТАТИСТИКА ===\n");
-
-        outputArea.setText(fullResult.toString());
-
-        //Активируем кнопки экспорта
         exportBtn.setDisable(false);
         exportSortedBtn.setDisable(false);
     }
@@ -244,12 +185,12 @@ public class MainPageController {
 
     @FXML
     protected void exportToExcel() {
-        ExcelExproter excelExproter = CodeCounterApplication.SERVICE_MANAGER.getService(ExcelExproter.class);
+        ExcelExproterAllLexems excelExproterAllLexems = CodeCounterApplication.SERVICE_MANAGER.getService(ExcelExproterAllLexems.class);
 
         try {
             var file = saveFile("tokens_analysis.xlsx");
             if (file != null) {
-                excelExproter.exportWorkbook(file.getAbsolutePath(), false, fileTokensMap);
+                excelExproterAllLexems.exportWorkbook(file.getAbsolutePath(), false, fileTokensMap);
                 outputArea.appendText("\n\nФайл экспортирован в:\n" + file.getAbsolutePath());
             }
         } catch (Exception e) {
@@ -259,12 +200,12 @@ public class MainPageController {
     }
     @FXML
     protected void exportSortedToExcel() {
-        ExcelExproter excelExproter = CodeCounterApplication.SERVICE_MANAGER.getService(ExcelExproter.class);
+        ExcelExproterAllLexems excelExproterAllLexems = CodeCounterApplication.SERVICE_MANAGER.getService(ExcelExproterAllLexems.class);
 
         try {
             var file = saveFile("sorted_tokens_analysis.xlsx");
             if (file != null) {
-                excelExproter.exportWorkbook(file.getAbsolutePath(), true, fileTokensMap);
+                excelExproterAllLexems.exportWorkbook(file.getAbsolutePath(), true, fileTokensMap);
                 outputArea.appendText("\n\nФайл экспортирован (по типам) в:\n" + file.getAbsolutePath());
             }
         } catch (Exception e) {

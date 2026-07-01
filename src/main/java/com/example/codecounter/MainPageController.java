@@ -148,18 +148,14 @@ public class MainPageController {
         //Общая статистика по всем файлам
         Map<TokenType, Integer> totalCounter = new HashMap<>();
 
-        fullResult.append("\n\n\n=== АНАЛИЗ ВЫБРАННЫХ ФАЙЛОВ ===\n");
-        fullResult.append("Всего файлов: " + selectedFiles.size() + "\n\n\n");
+        fullResult.append("=== АНАЛИЗ ВЫБРАННЫХ ФАЙЛОВ ===\n");
+        fullResult.append("Всего файлов: ").append(selectedFiles.size()).append("\n");
+        fullResult.append("=".repeat(40)).append("\n\n");
 
-        int generalLineCounts = 0;
-        HashMap<String, Integer> generalKeywordsCount = new HashMap<>();
         //Анализируем каждый выбранный файл
         for (File file : selectedFiles) {
             try {
                 String code = Files.readString(file.toPath());
-                int linesCount = code.split("\\n").length;
-
-
                 fileCodeMap.put(file, code);
 
                 var tokens = lexer.tokenize(code);
@@ -181,39 +177,45 @@ public class MainPageController {
                     if (type != TokenType.WHITESPACE) {
                         int count = fileCounter.getOrDefault(type, 0);
                         if (count > 0) {
-                            fullResult.append("  " + type + ": " + count + "\n");
+                            fullResult.append("  ").append(type).append(": ").append(count).append("\n");
                         }
                     }
                 }
-                fullResult.append("Количество строк: " + linesCount + "\n");
-                generalLineCounts += linesCount;
 
-                fullResult.append("----------------------------------------------\n");
-                fullResult.append("КЛЮЧЕВЫЕ СЛОВА И КОЛ-ВО ИСПОЛЬЗОВАНИЙ В ФАЙЛЕ:\n");
-                fullResult.append("----------------------------------------------\n");
+                // ВЫВОД ВСЕХ ЛЕКСЕМ
+                fullResult.append("----------------------------------------\n");
+                fullResult.append("ВСЕ ЛЕКСЕМЫ:\n");
+                fullResult.append("----------------------------------------\n");
 
-                HashMap<String, Integer> keywordsCount = new HashMap<>();
+                int tokenNumber = 1;
                 for (Token token : tokens) {
-                    if (token.getType() == TokenType.KEYWORD) {
+                    if (token.getType() != TokenType.WHITESPACE) {
                         String value = token.getValue()
                                 .replace("\n", "\\n")
-                                .replace("\r", "\\r")
-                                .toLowerCase();
+                                .replace("\r", "\\r");
 
-                        keywordsCount.merge(value, 1, Integer::sum);
-                        generalKeywordsCount.merge(value, 1, Integer::sum);
+                        // Обрезаем слишком длинные значения для читаемости
+                        if (value.length() > 50) {
+                            value = value.substring(0, 47) + "...";
+                        }
+
+                        fullResult.append(String.format("%4d. %-12s  %s\n",
+                                tokenNumber++,
+                                token.getType().toString(),
+                                value
+                        ));
                     }
                 }
-                for (Map.Entry<String, Integer> entry : keywordsCount.entrySet())
-                    fullResult.append("\t" + entry.getKey() + ": " + entry.getValue() + "\n");
-                fullResult.append("========================================\n");
-                fullResult.append("\n\n\n");
+                fullResult.append("\n");
 
             } catch (IOException e) {
                 fullResult.append("ОШИБКА при чтении файла ").append(file.getName())
                         .append(": ").append(e.getMessage()).append("\n\n");
             }
         }
+
+        // Общая статистика
+        fullResult.append("========================================\n");
 
         int totalTokens = totalCounter.values().stream().mapToInt(Integer::intValue).sum();
 
@@ -225,15 +227,7 @@ public class MainPageController {
                 generalResult += "\t" + type.toString() + ": " + count + "\n";
             }
         }
-
-        String keywordRes = "Ключевые слова и кол-во использований в файлах:\n";
-        for (Map.Entry<String, Integer> entry : generalKeywordsCount.entrySet())
-            keywordRes += "\t" + entry.getKey() + ": " + entry.getValue() + "\n";
-
         fullResult.insert(0, "\n\n");
-        fullResult.insert(0, keywordRes);
-        fullResult.insert(0, "\n");
-        fullResult.insert(0, "Количество строк во всех файлах: " + generalLineCounts + "\n");
         fullResult.insert(0, generalResult);
         fullResult.insert(0, "Всего токенов: " + totalTokens + "\n");
         fullResult.insert(0, "=== ОБЩАЯ СТАТИСТИКА ===\n");

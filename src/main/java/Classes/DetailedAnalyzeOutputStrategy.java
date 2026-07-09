@@ -1,86 +1,82 @@
 package Classes;
 
-import Interfaces.IAnalyzeOutputStrategy;
-import LanguageLexer.LanguageToken.Token;
 import LanguageLexer.LanguageToken.TokenType;
 
 import java.io.File;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
-public class DetailedAnalyzeOutputStrategy implements IAnalyzeOutputStrategy {
+public class DetailedAnalyzeOutputStrategy extends CompactAnalyzeOutputStrategy {
+
+    // Храним только готовый текст по файлу, а не токены - это на порядки меньше по памяти
+    private final ConcurrentHashMap<File, String> fileBlocks = new ConcurrentHashMap<>();
+
+    public DetailedAnalyzeOutputStrategy(AnalysisSettings settings) {
+        super(settings);
+    }
 
     @Override
-    public String makeAnalyzeOutput(HashMap<File, List<Token>> filesTokensMap) {
-        StringBuilder fullResult = new StringBuilder();
-        Map<TokenType, Integer> totalCounter = new HashMap<>();
-        HashMap<String, Integer> generalKeywordsCount = new HashMap<>();
+    public void onFileAnalyzed(FileAnalysisData fileData) {
+        StringBuilder block = new StringBuilder();
+        block.append("----------------------------------------\n");
+        block.append("ФАЙЛ: ").append(fileData.file.getName()).append("\n");
+        block.append("----------------------------------------\n");
+        block.append("Строк: ").append(fileData.lineCount)
+                .append(" (непустых: ").append(fileData.nonEmptyLineCount).append(")\n");
 
-        fullResult.append("\n\n\n=== АНАЛИЗ ВЫБРАННЫХ ФАЙЛОВ ===\n");
-        fullResult.append("Всего файлов: ").append(filesTokensMap.size()).append("\n\n\n");
+        appendFileCounts(block, fileData.tokenTypeCount, fileData.tokenCount);
+        block.append("\n");
 
-        for (Map.Entry<File, List<Token>> entry : filesTokensMap.entrySet()) {
-            File file = entry.getKey();
-            List<Token> tokens = entry.getValue();
+        fileBlocks.put(fileData.file, block.toString());
+    }
 
-            Map<TokenType, Integer> fileCounter = new HashMap<>();
-            tokens.forEach(token -> {
-                fileCounter.merge(token.getType(), 1, Integer::sum);
-                totalCounter.merge(token.getType(), 1, Integer::sum);
-            });
+    @Override
+    public String finalizeOutput(AnalysisResultData aggregate) {
+        StringBuilder sb = new StringBuilder(super.finalizeOutput(aggregate));
 
-            fullResult.append("========================================\n");
-            fullResult.append("ФАЙЛ: ").append(file.getName()).append("\n");
-            fullResult.append("----------------------------------------\n");
-            fullResult.append("Всего токенов: ").append(tokens.size()).append("\n");
-            fullResult.append("Статистика:\n");
-            for (TokenType type : TokenType.values()) {
-                if (type != TokenType.WHITESPACE) {
-                    int count = fileCounter.getOrDefault(type, 0);
-                    if (count > 0) {
-                        fullResult.append("  ").append(type).append(": ").append(count).append("\n");
-                    }
-                }
-            }
+        sb.append("\n").append("=".repeat(60)).append("\n");
+        sb.append("=== АНАЛИЗ ПО ФАЙЛАМ ===\n\n");
 
-            fullResult.append("----------------------------------------------\n");
-            fullResult.append("КЛЮЧЕВЫЕ СЛОВА И КОЛ-ВО ИСПОЛЬЗОВАНИЙ В ФАЙЛЕ:\n");
-            fullResult.append("----------------------------------------------\n");
-
-            HashMap<String, Integer> keywordsCount = new HashMap<>();
-            for (Token token : tokens) {
-                if (token.getType() == TokenType.KEYWORD) {
-                    String value = token.getValue().toLowerCase();
-                    keywordsCount.merge(value, 1, Integer::sum);
-                    generalKeywordsCount.merge(value, 1, Integer::sum);
-                }
-            }
-            keywordsCount.forEach((k, v) ->
-                    fullResult.append("\t").append(k).append(": ").append(v).append("\n"));
-
-            fullResult.append("========================================\n\n\n");
+        // Восстанавливаем исходный порядок файлов, даже если анализ шёл параллельно
+        for (File file : aggregate.getFiles()) {
+            String block = fileBlocks.get(file);
+            if (block != null) sb.append(block);
         }
 
-        // Общая статистика — вставляем в начало
-        int totalTokens = totalCounter.values().stream().mapToInt(Integer::intValue).sum();
+        return sb.toString();
+    }
 
-        StringBuilder header = new StringBuilder();
-        header.append("=== ОБЩАЯ СТАТИСТИКА ===\n");
-        header.append("Всего токенов: ").append(totalTokens).append("\n");
+    // Локальная версия appendCounts для не-потокобезопасных Map<TokenType, Integer>
+    private void appendFileCounts(StringBuilder sb,
+                                  Map<TokenType, Integer> tokenTypeCount,
+                                  Map<TokenType, Map<String, Integer>> tokenCount) {
+
+        int totalTokens = tokenTypeCount.values().stream().mapToInt(Integer::intValue).sum();
+        sb.append("Токенов всего: ").append(totalTokens).append("\n\n");
+
+        sb.append("По типам:\n");
         for (TokenType type : TokenType.values()) {
-            if (type != TokenType.WHITESPACE) {
-                int count = totalCounter.getOrDefault(type, 0);
-                if (count > 0) {
-                    header.append("\t").append(type).append(": ").append(count).append("\n");
-                }
+            if (type == TokenType.WHITESPACE) continue;
+            int count = tokenTypeCount.getOrDefault(type, 0);
+            if (count > 0) sb.append(String.format("  %-14s %d\n", type, count));
+        }
+
+        if (!tokenCount.isEmpty()) {
+            sb.append("\n");
+            for (String typeName : new String[]{"KEYWORD", "IDENTIFIER", "LITERAL", "OPERATOR", "SEPARATOR", "COMMENT"}) {
+                TokenType type;
+                try { type = TokenType.valueOf(typeName); }
+                catch (IllegalArgumentException e) { continue; }
+                if (!tokenCount.containsKey(type)) continue;
+
+                Map<String, Integer> values = tokenCount.get(type);
+                int typeTotal = values.values().stream().mapToInt(Integer::intValue).sum();
+                sb.append(type).append(" (").append(typeTotal).append(" шт.):\n");
+                values.entrySet().stream()
+                        .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                        .forEach(e -> sb.append(String.format("  %-25s %d\n", e.getKey(), e.getValue())));
+                sb.append("\n");
             }
         }
-        header.append("Ключевые слова и кол-во использований:\n");
-        generalKeywordsCount.forEach((k, v) ->
-                header.append("\t").append(k).append(": ").append(v).append("\n"));
-        header.append("\n\n");
-
-        return header.append(fullResult).toString();
     }
 }

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import java.lang.*?>
+<?import java.util.*?>
+<?import javafx.scene.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<?import javafx.geometry.Insets?>
+<ScrollPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.example.codecounter.FileAnalysisStageController"
+            minHeight="400.0" minWidth="600.0"
+            fitToHeight="true" fitToWidth="true">
+
+    <HBox fillHeight="true">
+
+        <VBox prefWidth="250.0" minWidth="150.0">
+            <HBox.margin>
+                <Insets right="15.0" />
+            </HBox.margin>
+
+            <Label>Результат анализа</Label>
+            <TextArea fx:id="analysisTextArea" VBox.vgrow="ALWAYS" maxWidth="1.7976931348623157E308" />
+        </VBox>
+
+        <VBox fillWidth="true" HBox.hgrow="ALWAYS">
+            <Label>Текст файла</Label>
+            <TextArea fx:id="codeTextArea" VBox.vgrow="ALWAYS" maxWidth="1.7976931348623157E308" />
+        </VBox>
+
+    </HBox>
+
+
+</ScrollPane>

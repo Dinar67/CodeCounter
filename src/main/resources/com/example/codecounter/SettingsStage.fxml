@@ -1,53 +1,50 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.geometry.*?>
+<?import javafx.geometry.Insets?>
 <?import javafx.scene.control.*?>
-<?import javafx.scene.layout.*?>
-<?import javafx.scene.text.*?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+<ScrollPane fitToWidth="true" fitToHeight="true"
+            xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.example.codecounter.SettingsStageController">
 
-<AnchorPane prefHeight="400.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/17.0.12" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.example.codecounter.SettingsStageController">
-    <VBox alignment="CENTER" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
-        <children>
-            <Label alignment="CENTER" contentDisplay="CENTER" text="Настройки" textAlignment="CENTER">
-                <font>
-                    <Font name="BebasNeuePro-Bold" size="24.0" />
-                </font>
-                <VBox.margin>
-                    <Insets top="20" />
-                </VBox.margin>
-            </Label>
+    <VBox spacing="12" prefWidth="400">
+        <padding><Insets top="20" right="20" bottom="20" left="20"/></padding>
 
+        <Label text="Настройки анализа" style="-fx-font-size: 18; -fx-font-weight: bold;"/>
 
-            <BorderPane prefHeight="200.0" prefWidth="200.0">
-                <center>
-                    <VBox prefWidth="Infinity" minWidth="200">
-                        <children>
-                            <fx:define>
-                                <ToggleGroup fx:id="outputConsole" />
-                            </fx:define>
-                            <RadioButton fx:id="fullRb" prefHeight="18.0" toggleGroup="$outputConsole" prefWidth="200.0" text="Полный вывод" BorderPane.alignment="CENTER_LEFT">
-                                <VBox.margin>
-                                    <Insets top="20"></Insets>
-                                </VBox.margin>
-                            </RadioButton>
+        <Separator/>
 
-                            <RadioButton fx:id="shortRb"  prefWidth="200" toggleGroup="$outputConsole" text="Короткий вывод" BorderPane.alignment="CENTER_LEFT">
-                                <VBox.margin>
-                                    <Insets top="5"></Insets>
-                                </VBox.margin>
-                            </RadioButton>
-                        </children>
-                        <BorderPane.margin>
-                            <Insets left="50"></Insets>
-                        </BorderPane.margin>
-                    </VBox>
-                </center>
-            </BorderPane>
+        <!-- Режим анализа -->
+        <Label text="Режим анализа:"/>
 
+        <!-- Чекбоксы типов токенов — заполняются динамически в контроллере -->
+        <Label text="Выберите типы лексем для анализа:"/>
 
+        <VBox fx:id="tokenTypesBox" spacing="5">
+            <padding><Insets left="15"/></padding>
+        </VBox>
 
+        <Separator/>
 
+        <!-- Прочие настройки -->
+        <CheckBox fx:id="showFileDetailsCheck"
+                  text="Показывать анализ по каждому файлу (до 100 файлов)"/>
+        <CheckBox fx:id="showTokenListCheck"
+                  text="Вывести список токенов (на страницах по файлам Excel)"/>
 
-        </children>
+        <Separator/>
+
+        <!-- Кнопки -->
+        <HBox spacing="10">
+            <Button fx:id="saveBtn"
+                    text="Сохранить"
+                    onAction="#onSave"
+                    style="-fx-background-color: #4CAF50; -fx-text-fill: white;"/>
+            <Button text="По умолчанию" onAction="#onDefault"/>
+            <Button text="Отмена" onAction="#onCancel"/>
+        </HBox>
+
     </VBox>
-</AnchorPane>
+</ScrollPane>

@@ -177,7 +177,6 @@ public class ExcelAnalysisExporter implements IService {
             rowIdx[0]++;
             appendLexemeListConcurrent(sheet, rowIdx, aggregate.getTokenCount());
         }
-
         sheet.autoSizeColumn(0);
     }
 

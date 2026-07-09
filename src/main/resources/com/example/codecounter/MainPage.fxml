@@ -54,20 +54,34 @@
                 <children>
                     <VBox spacing="5" HBox.hgrow="NEVER">
                         <Label text="Список файлов:" />
-                        <ListView fx:id="fileListView" prefHeight="400.0" prefWidth="300.0" >
-
-                        </ListView>
+                        <HBox spacing="5">
+                            <TextField fx:id="searchField" promptText="Поиск файла..." onAction="#searchFiles" HBox.hgrow="ALWAYS" />
+                            <Button fx:id="searchBtn" text="Найти" onAction="#searchFiles" />
+                        </HBox>
+                        <ListView fx:id="fileListView" prefHeight="400.0" prefWidth="300.0" />
                     </VBox>
 
                     <VBox spacing="5" HBox.hgrow="ALWAYS">
                         <Label text="Результаты анализа:" />
-                        <TextArea fx:id="outputArea" prefHeight="400.0" wrapText="true" />
+                        <TextArea fx:id="outputArea" prefHeight="432.0" wrapText="true" />
                     </VBox>
                 </children>
                 <VBox.margin>
                     <Insets left="10.0" right="10.0" top="10.0" />
                 </VBox.margin>
             </HBox>
+
+            <VBox alignment="CENTER">
+                <ProgressBar fx:id="analysisProgressBar" prefWidth="400.0" progress="0.0" visible="false" />
+                <Label fx:id="progressLb" alignment="CENTER" contentDisplay="CENTER" text="" textAlignment="CENTER" visible="false">
+                    <VBox.margin>
+                        <Insets top="5.0" />
+                    </VBox.margin>
+                </Label>
+                <VBox.margin>
+                    <Insets top="10.0" />
+                </VBox.margin>
+            </VBox>
 
             <VBox alignment="CENTER">
                 <Label fx:id="resultLb" alignment="CENTER" contentDisplay="CENTER" text="Выберите папку" textAlignment="CENTER">

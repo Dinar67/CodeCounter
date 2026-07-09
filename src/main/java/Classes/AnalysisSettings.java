@@ -8,7 +8,9 @@ public class AnalysisSettings {
     public boolean showFileDetails = true;
     public Set<TokenType> selectedTokenTypes = new HashSet<>();
 
-    public AnalysisSettings() {
-        selectedTokenTypes.add(TokenType.KEYWORD);
+    public AnalysisSettings() {}
+    public AnalysisSettings(boolean showFileDetails, Set<TokenType> selectedTokenTypes) {
+        this.showFileDetails = showFileDetails;
+        this.selectedTokenTypes = selectedTokenTypes;
     }
 }

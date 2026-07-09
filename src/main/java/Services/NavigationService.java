@@ -2,6 +2,7 @@ package Services;
 
 import Interfaces.IService;
 import com.example.codecounter.CodeCounterApplication;
+import com.example.codecounter.FileAnalysisStageController;
 import com.example.codecounter.MainPageController;
 import com.example.codecounter.SettingsStageController;
 import javafx.fxml.FXMLLoader;
@@ -19,6 +20,7 @@ public class NavigationService implements IService {
     private HashMap<Class, String> _pageResource = new HashMap<>(){{
        put(MainPageController.class, "MainPage.fxml");
        put(SettingsStageController.class, "SettingsStage.fxml");
+       put(FileAnalysisStageController.class, "FileAnalysisStage.fxml");
     }};
 
     public NavigationService(Stage stage){

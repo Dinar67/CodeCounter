@@ -1,11 +1,10 @@
 package Interfaces;
 
-import LanguageLexer.LanguageToken.Token;
-
-import java.io.File;
-import java.util.HashMap;
-import java.util.List;
+import Classes.AnalysisResultData;
+import Classes.FileAnalysisData;
 
 public interface IAnalyzeOutputStrategy {
-    public String makeAnalyzeOutput(HashMap<File, List<Token>> filesTokensMap);
+
+    default void onFileAnalyzed(FileAnalysisData fileData) {}
+    String finalizeOutput(AnalysisResultData aggregate);
 }

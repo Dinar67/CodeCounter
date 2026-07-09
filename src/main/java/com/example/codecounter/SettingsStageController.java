@@ -32,7 +32,7 @@ public class SettingsStageController {
 
         settingsService = CodeCounterApplication.SERVICE_MANAGER.getService(SettingsService.class);
         if(settingsService == null) return;
-        var settings = settingsService.getSettings();
+        var settings = settingsService.getSettings(0);
         initSettings(settings.showFileDetails, settings.selectedTokenTypes);
     }
 

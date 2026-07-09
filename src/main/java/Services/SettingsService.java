@@ -18,8 +18,8 @@ public class SettingsService implements IService {
         current = load();
     }
 
-    public AnalysisSettings getSettings() {
-        return current;
+    public AnalysisSettings getSettings(int filesCount) {
+        return filesCount <= 100? current : new AnalysisSettings(false, current.selectedTokenTypes);
     }
 
     public void saveSettings(AnalysisSettings settings) {

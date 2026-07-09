@@ -162,7 +162,7 @@ public class ExcelAnalysisExporter implements IService {
 
         long totalTokens = aggregate.getTokenTypeCount().values().stream()
                 .mapToLong(LongAdder::sum).sum();
-        appendRow(sheet, rowIdx, "Токенов всего: " + totalTokens);
+        appendRow(sheet, rowIdx, "Токенов всего: ", totalTokens);
         rowIdx[0]++;
 
         appendRow(sheet, rowIdx, "По типам:");
@@ -170,14 +170,13 @@ public class ExcelAnalysisExporter implements IService {
             if (type == TokenType.WHITESPACE) continue;
             LongAdder counter = aggregate.getTokenTypeCount().get(type);
             long count = counter == null ? 0 : counter.sum();
-            if (count > 0) appendRow(sheet, rowIdx, "  " + type + ": " + count);
+            if (count > 0) appendRow(sheet, rowIdx, "  " + type + ": ", count);
         }
 
         if (!aggregate.getTokenCount().isEmpty()) {
             rowIdx[0]++;
             appendLexemeListConcurrent(sheet, rowIdx, aggregate.getTokenCount());
         }
-
         sheet.autoSizeColumn(0);
     }
 
@@ -200,7 +199,7 @@ public class ExcelAnalysisExporter implements IService {
         for (TokenType type : TokenType.values()) {
             if (type == TokenType.WHITESPACE) continue;
             int count = fileData.tokenTypeCount.getOrDefault(type, 0);
-            if (count > 0) appendRow(sheet, rowIdx, "  " + type + ": " + count);
+            if (count > 0) appendRow(sheet, rowIdx, "  " + type + ": ", count);
         }
 
         if (!fileData.tokenCount.isEmpty()) {
@@ -227,7 +226,7 @@ public class ExcelAnalysisExporter implements IService {
         var tokens = lexer.tokenize(code);
 
         for (Token token : tokens) {
-            appendRow(sheet, rowIdx, token.getType() + " " + token.getValue());
+            appendRow(sheet, rowIdx, token.getType().toString(), token.getValue());
         }
     }
 
@@ -246,7 +245,7 @@ public class ExcelAnalysisExporter implements IService {
 
             values.entrySet().stream()
                     .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
-                    .forEach(e -> appendRow(sheet, rowIdx, "  " + e.getKey() + ": " + e.getValue()));
+                    .forEach(e -> appendRow(sheet, rowIdx, "  " + e.getKey() + ": ", e.getValue()));
             rowIdx[0]++;
         }
     }
@@ -270,9 +269,24 @@ public class ExcelAnalysisExporter implements IService {
         }
     }
 
-    private void appendRow(Sheet sheet, int[] rowIdx, String text) {
+    private void appendRow(Sheet sheet, int[] rowIdx, Object... values) {
         Row row = sheet.createRow(rowIdx[0]++);
-        row.createCell(0).setCellValue(text);
+        for (int i = 0; i < values.length; i++) {
+            Object value = values[i];
+            var cell = row.createCell(i);
+
+            if (value == null) {
+                cell.setCellValue("");
+            } else if (value instanceof Number num) {
+                // Числа сохраняем как числа (работает с Integer, Long, Double, Float и т.д.)
+                cell.setCellValue(num.doubleValue());
+            } else if (value instanceof Boolean bool) {
+                cell.setCellValue(bool);
+            } else {
+                // Всё остальное как текст
+                cell.setCellValue(value.toString());
+            }
+        }
     }
 
     // Имена листов Excel: максимум 31 символ, без \ / ? * [ ] : , и должны быть уникальны в книге

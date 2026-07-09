@@ -1,86 +1,45 @@
 package Classes;
 
-import Interfaces.IAnalyzeOutputStrategy;
 import LanguageLexer.LanguageToken.Token;
-import LanguageLexer.LanguageToken.TokenType;
 
 import java.io.File;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.nio.file.Files;
+import java.util.*;
 
-public class DetailedAnalyzeOutputStrategy implements IAnalyzeOutputStrategy {
+public class DetailedAnalyzeOutputStrategy extends CompactAnalyzeOutputStrategy {
+
+    public DetailedAnalyzeOutputStrategy(AnalysisSettings settings) {
+        super(settings);
+    }
 
     @Override
     public String makeAnalyzeOutput(HashMap<File, List<Token>> filesTokensMap) {
-        StringBuilder fullResult = new StringBuilder();
-        Map<TokenType, Integer> totalCounter = new HashMap<>();
-        HashMap<String, Integer> generalKeywordsCount = new HashMap<>();
+        // Общая часть — из родителя
+        StringBuilder sb = new StringBuilder(super.makeAnalyzeOutput(filesTokensMap));
 
-        fullResult.append("\n\n\n=== АНАЛИЗ ВЫБРАННЫХ ФАЙЛОВ ===\n");
-        fullResult.append("Всего файлов: ").append(filesTokensMap.size()).append("\n\n\n");
+        // Добавляем блок по файлам
+        sb.append("=".repeat(60)).append("\n");
+        sb.append("=== АНАЛИЗ ПО ФАЙЛАМ ===\n\n");
 
         for (Map.Entry<File, List<Token>> entry : filesTokensMap.entrySet()) {
             File file = entry.getKey();
             List<Token> tokens = entry.getValue();
 
-            Map<TokenType, Integer> fileCounter = new HashMap<>();
-            tokens.forEach(token -> {
-                fileCounter.merge(token.getType(), 1, Integer::sum);
-                totalCounter.merge(token.getType(), 1, Integer::sum);
-            });
-
-            fullResult.append("========================================\n");
-            fullResult.append("ФАЙЛ: ").append(file.getName()).append("\n");
-            fullResult.append("----------------------------------------\n");
-            fullResult.append("Всего токенов: ").append(tokens.size()).append("\n");
-            fullResult.append("Статистика:\n");
-            for (TokenType type : TokenType.values()) {
-                if (type != TokenType.WHITESPACE) {
-                    int count = fileCounter.getOrDefault(type, 0);
-                    if (count > 0) {
-                        fullResult.append("  ").append(type).append(": ").append(count).append("\n");
-                    }
-                }
+            int lines = 0;
+            int nonEmptyLines = 0;
+            try {
+                String code = Files.readString(file.toPath());
+                lines = code.split("\n").length;
+                nonEmptyLines = (int) Arrays.stream(code.split("\n"))
+                        .filter(l -> !l.trim().isEmpty()).count();
+            } catch (Exception e) {
+                sb.append("ОШИБКА чтения ").append(file.getName()).append("\n\n");
+                continue;
             }
 
-            fullResult.append("----------------------------------------------\n");
-            fullResult.append("КЛЮЧЕВЫЕ СЛОВА И КОЛ-ВО ИСПОЛЬЗОВАНИЙ В ФАЙЛЕ:\n");
-            fullResult.append("----------------------------------------------\n");
-
-            HashMap<String, Integer> keywordsCount = new HashMap<>();
-            for (Token token : tokens) {
-                if (token.getType() == TokenType.KEYWORD) {
-                    String value = token.getValue().toLowerCase();
-                    keywordsCount.merge(value, 1, Integer::sum);
-                    generalKeywordsCount.merge(value, 1, Integer::sum);
-                }
-            }
-            keywordsCount.forEach((k, v) ->
-                    fullResult.append("\t").append(k).append(": ").append(v).append("\n"));
-
-            fullResult.append("========================================\n\n\n");
+            appendFileBlock(sb, file, tokens, lines, nonEmptyLines);
         }
 
-        // Общая статистика — вставляем в начало
-        int totalTokens = totalCounter.values().stream().mapToInt(Integer::intValue).sum();
-
-        StringBuilder header = new StringBuilder();
-        header.append("=== ОБЩАЯ СТАТИСТИКА ===\n");
-        header.append("Всего токенов: ").append(totalTokens).append("\n");
-        for (TokenType type : TokenType.values()) {
-            if (type != TokenType.WHITESPACE) {
-                int count = totalCounter.getOrDefault(type, 0);
-                if (count > 0) {
-                    header.append("\t").append(type).append(": ").append(count).append("\n");
-                }
-            }
-        }
-        header.append("Ключевые слова и кол-во использований:\n");
-        generalKeywordsCount.forEach((k, v) ->
-                header.append("\t").append(k).append(": ").append(v).append("\n"));
-        header.append("\n\n");
-
-        return header.append(fullResult).toString();
+        return sb.toString();
     }
 }

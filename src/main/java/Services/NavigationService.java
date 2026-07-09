@@ -15,6 +15,7 @@ import java.util.HashMap;
 public class NavigationService implements IService {
     private Stage _mainStage;
     private Scene _currentScene;
+    private Stage _currentStage;
     private HashMap<Class, String> _pageResource = new HashMap<>(){{
        put(MainPageController.class, "MainPage.fxml");
        put(SettingsStageController.class, "SettingsStage.fxml");
@@ -38,9 +39,11 @@ public class NavigationService implements IService {
         stage.setScene(scene);
         stage.initModality(Modality.APPLICATION_MODAL);
         stage.initOwner(_mainStage);
+        _currentStage = stage;
 
         stage.showAndWait();
     }
 
     public Scene currentScene() { return _currentScene; }
+    public Stage currentStage() { return _currentStage; }
 }

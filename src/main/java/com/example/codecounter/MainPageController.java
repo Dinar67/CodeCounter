@@ -1,23 +1,31 @@
 package com.example.codecounter;
 
+import Classes.*;
 import LanguageLexer.LanguageToken.Token;
 import LanguageLexer.LanguageToken.TokenType;
 import LanguageLexer.Languages.JavaLanguage.JavaLanguage;
 import LanguageLexer.Lexer.RegexLexer;
-import Services.ExcelExproter;
+import Services.ExcelExproterAllLexems;
 import Services.FileManager;
-import javafx.beans.value.ObservableValue;
+import Services.NavigationService;
+import Services.SettingsService;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
-import javafx.scene.control.cell.CheckBoxListCell;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.TextArea;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import javafx.util.Callback;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 
+import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.*;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class MainPageController {
 
@@ -29,73 +37,62 @@ public class MainPageController {
     @FXML protected Button exportSortedBtn;
     @FXML protected Button selectAllBtn;
     @FXML protected Button deselectAllBtn;
+    @FXML protected Button settingsBtn;
 
     private ObservableList<FileItem> fileItems = FXCollections.observableArrayList();
-    private Map<File, List<Token>> fileTokensMap = new HashMap<>();
-    private Map<File, String> fileCodeMap = new HashMap<>();
+    private HashMap<TokenType, Integer> typeCount = new HashMap<>();
+
 
     @FXML
-    protected void chooseDir() throws IOException {
+    protected void initialize(){
+        var image = new Image(CodeCounterApplication.class.getResourceAsStream("/images/settings_icon.png"));
+        ImageView imageView = new ImageView(image);
+
+        imageView.setFitWidth(20);
+        imageView.setFitHeight(20);
+
+        settingsBtn.setGraphic(imageView);
+    }
+
+
+    @FXML
+    protected void chooseDir() {
         FileManager fileManager = CodeCounterApplication.SERVICE_MANAGER.getService(FileManager.class);
+        try{ choose(fileManager); }
+        catch (Exception e){ outputArea.setText(e.getMessage()); }
+    }
+    private void choose(FileManager fileManager) throws Exception {
         var dir = fileManager.chooseDirectory();
+        if (dir == null) throw new Exception("Папка не выбрана!");
 
-        if (dir == null) {
-            outputArea.setText("Папка не выбрана!");
-            return;
-        }
-
-        //Получаем все Java файлы из папки
         List<File> javaFiles = fileManager.selectFilesFromDir("java", dir);
-
-        if (javaFiles.isEmpty()) {
-            outputArea.setText("В выбранной папке не найдено Java файлов!");
-            fileItems.clear();
-            return;
-        }
-
-        //Создаем список с галочками
         fileItems.clear();
-        for (File file : javaFiles) {
-            fileItems.add(new FileItem(file, true)); // По умолчанию все выбраны
-        }
 
-        //Настраиваем ListView с CheckBox
+        if (javaFiles.isEmpty()) throw new Exception("В выбранной папке не найдено Java файлов!");
+
+        for (File file : javaFiles) fileItems.add(new FileItem(file, true)); // По умолчанию все выбраны
+
         setupFileListView();
 
         outputArea.setText("Найдено файлов: " + fileItems.size() +
                 "\nВыберите файлы для анализа и нажмите 'Анализировать выбранные файлы'");
         resultLb.setText("Найдено файлов: " + fileItems.size() + " (выбрано: " + getSelectedFiles().size() + ")");
 
-        //Сбрасываем результаты анализа
-        fileTokensMap.clear();
-        fileCodeMap.clear();
         exportBtn.setDisable(true);
         exportSortedBtn.setDisable(true);
     }
 
+
     private void setupFileListView() {
         fileListView.setItems(fileItems);
-        fileListView.setCellFactory(new Callback<ListView<FileItem>, ListCell<FileItem>>() {
-            @Override
-            public ListCell<FileItem> call(ListView<FileItem> listView) {
-                return new CheckBoxListCell<>(new Callback<FileItem, ObservableValue<Boolean>>() {
-                    @Override
-                    public ObservableValue<Boolean> call(FileItem item) {
-                        return item.selectedProperty();
-                    }
-                }) {
-                    @Override
-                    public void updateItem(FileItem item, boolean empty) {
-                        super.updateItem(item, empty);
-                        if (empty || item == null) {
-                            setText(null);
-                        } else {
-                            setText(item.getFile().getName());
-                        }
-                    }
-                };
-            }
-        });
+        fileListView.setCellFactory(param -> new FileItemCell(this::selectChanged));
+    }
+    private void selectChanged(FileItem fileItem) { }
+
+    @FXML
+    protected void openSettings() throws IOException {
+        var navManager = CodeCounterApplication.SERVICE_MANAGER.getService(NavigationService.class);
+        if(navManager != null) navManager.openModalWindow(SettingsStageController.class);
     }
 
     @FXML
@@ -116,11 +113,8 @@ public class MainPageController {
 
     private List<File> getSelectedFiles() {
         List<File> selected = new ArrayList<>();
-        for (FileItem item : fileItems) {
-            if (item.isSelected()) {
-                selected.add(item.getFile());
-            }
-        }
+        for (FileItem item : fileItems)
+            if (item.isSelected()) selected.add(item.getFile());
         return selected;
     }
 
@@ -130,113 +124,99 @@ public class MainPageController {
         resultLb.setText("Найдено файлов: " + total + " (выбрано: " + selected + ")");
     }
 
+
+
     @FXML
-    protected void analyzeFiles() throws IOException {
-        List<File> selectedFiles = getSelectedFiles();
-
-        if (selectedFiles.isEmpty()) {
-            outputArea.setText("Выберите хотя бы один файл для анализа!");
-            return;
+    protected void analyzeFiles() {
+        try{
+            analyze();
         }
-
-        fileTokensMap.clear();
-        fileCodeMap.clear();
-
-        RegexLexer lexer = new RegexLexer(new JavaLanguage());
-        StringBuilder fullResult = new StringBuilder();
-
-        //Общая статистика по всем файлам
-        Map<TokenType, Integer> totalCounter = new HashMap<>();
-
-        fullResult.append("=== АНАЛИЗ ВЫБРАННЫХ ФАЙЛОВ ===\n");
-        fullResult.append("Всего файлов: ").append(selectedFiles.size()).append("\n");
-        fullResult.append("=".repeat(40)).append("\n\n");
-
-        //Анализируем каждый выбранный файл
-        for (File file : selectedFiles) {
-            try {
-                String code = Files.readString(file.toPath());
-                fileCodeMap.put(file, code);
-
-                var tokens = lexer.tokenize(code);
-                fileTokensMap.put(file, tokens);
-
-                //Статистика для текущего файла
-                Map<TokenType, Integer> fileCounter = new HashMap<>();
-                tokens.forEach(token -> {
-                    fileCounter.merge(token.getType(), 1, Integer::sum);
-                    totalCounter.merge(token.getType(), 1, Integer::sum);
-                });
-
-                fullResult.append("========================================\n");
-                fullResult.append("ФАЙЛ: ").append(file.getName()).append("\n");
-                fullResult.append("----------------------------------------\n");
-                fullResult.append("Всего токенов: ").append(tokens.size()).append("\n");
-                fullResult.append("Статистика:\n");
-                for (TokenType type : TokenType.values()) {
-                    if (type != TokenType.WHITESPACE) {
-                        int count = fileCounter.getOrDefault(type, 0);
-                        if (count > 0) {
-                            fullResult.append("  ").append(type).append(": ").append(count).append("\n");
-                        }
-                    }
-                }
-
-                // ВЫВОД ВСЕХ ЛЕКСЕМ
-                fullResult.append("----------------------------------------\n");
-                fullResult.append("ВСЕ ЛЕКСЕМЫ:\n");
-                fullResult.append("----------------------------------------\n");
-
-                int tokenNumber = 1;
-                for (Token token : tokens) {
-                    if (token.getType() != TokenType.WHITESPACE) {
-                        String value = token.getValue()
-                                .replace("\n", "\\n")
-                                .replace("\r", "\\r");
-
-                        // Обрезаем слишком длинные значения для читаемости
-                        if (value.length() > 50) {
-                            value = value.substring(0, 47) + "...";
-                        }
-
-                        fullResult.append(String.format("%4d. %-12s  %s\n",
-                                tokenNumber++,
-                                token.getType().toString(),
-                                value
-                        ));
-                    }
-                }
-                fullResult.append("\n");
-
-            } catch (IOException e) {
-                fullResult.append("ОШИБКА при чтении файла ").append(file.getName())
-                        .append(": ").append(e.getMessage()).append("\n\n");
-            }
+        catch (Exception e){
+            outputArea.setText(e.getMessage());
         }
+    }
 
-        // Общая статистика
-        fullResult.append("========================================\n");
+    private void analyze() throws Exception{
+        var selected = getSelectedFiles();
+        if (selected.isEmpty()) throw  new Exception("Выберите хотя бы один файл для анализа!");
+        var settingsService = CodeCounterApplication.SERVICE_MANAGER.getService(SettingsService.class);
+        if(settingsService == null) throw new Exception("Сервис настроек отсутствует!");
+        var settings = settingsService.getSettings();
 
-        int totalTokens = totalCounter.values().stream().mapToInt(Integer::intValue).sum();
+        var result = analyzeHandle(selected, settings);
 
-        String generalResult = "";
+        var outputStrategy = settings.showFileDetails? new DetailedAnalyzeOutputStrategy(settings) : new CompactAnalyzeOutputStrategy(settings);
+        //outputArea.setText(outputStrategy.makeAnalyzeOutput());
+        primitiveOutput(result);
 
-        for (TokenType type : TokenType.values()) {
-            if (type != TokenType.WHITESPACE) {
-                int count = totalCounter.getOrDefault(type, 0);
-                generalResult += "\t" + type.toString() + ": " + count + "\n";
-            }
-        }
-        fullResult.insert(0, "\n\n");
-        fullResult.insert(0, generalResult);
-        fullResult.insert(0, "Всего токенов: " + totalTokens + "\n");
-        fullResult.insert(0, "=== ОБЩАЯ СТАТИСТИКА ===\n");
-
-        outputArea.setText(fullResult.toString());
-
-        //Активируем кнопки экспорта
         exportBtn.setDisable(false);
         exportSortedBtn.setDisable(false);
+    }
+    private AnalysisResultData analyzeHandle(List<File> selected, AnalysisSettings settings) throws Exception {
+        var lexer = new RegexLexer(new JavaLanguage());
+        var result = new AnalysisResultData();
+        result.setFiles(selected);
+        Set<TokenType> selectedTypes = Set.copyOf(settings.selectedTokenTypes);
+
+        for(File file : selected) {
+            var code = Files.readString(file.toPath());
+            var tokens = lexer.tokenize(code);
+
+
+
+            for (Token token : tokens)
+                result.getTokenTypeCount().merge(token.getType(), 1, Integer::sum);
+
+            List<Token> allowedTokens = tokens.stream()
+                    .filter(token -> selectedTypes.contains(token.getType()))
+                    .toList();
+
+            for (Token token : allowedTokens) {
+                HashMap<String, Integer> innerMap = result.getTokenCount().computeIfAbsent(
+                        token.getType(),
+                        k -> new HashMap<String, Integer>()
+                );
+
+                innerMap.merge(token.getValue(), 1, Integer::sum);
+            }
+
+            result.setLineCount(result.getLineCount() + code.lines().count());
+            result.setNonEmptyLineCount(result.getNonEmptyLineCount() + code.lines()
+                    .filter(line -> !line.strip().isEmpty())
+                    .count());
+        }
+        return result;
+    }
+    private void primitiveOutput(AnalysisResultData result){
+        StringBuilder stringBuilder = new StringBuilder();
+
+        stringBuilder.append("кол-во файлов: " + result.getFiles().size() + "\n");
+        stringBuilder.append("кол-во строк: " + result.getLineCount() + " (не пустых строк: " + result.getNonEmptyLineCount() + ")\n");
+
+        for (Map.Entry<TokenType, Integer> entry : result.getTokenTypeCount().entrySet()){
+            TokenType type = entry.getKey();
+            int count = entry.getValue();
+
+            stringBuilder.append(type.toString() + ": " + count + "\n");
+        }
+
+        stringBuilder.append("\n");
+        stringBuilder.append("Подсчет выбранных лексем:\n");
+        for (var entry : result.getTokenCount().entrySet()){
+            var type = entry.getKey();
+            var tokens = entry.getValue();
+
+            stringBuilder.append(type.toString() + ":\n");
+            for(var tokenEntry : tokens.entrySet()){
+                var token = tokenEntry.getKey();
+                var count = tokenEntry.getValue();
+
+                stringBuilder.append(token + ": " + count + "\n");
+            }
+            stringBuilder.append("\n");
+        }
+
+        outputArea.setText(stringBuilder.toString());
     }
 
 
@@ -244,12 +224,12 @@ public class MainPageController {
 
     @FXML
     protected void exportToExcel() {
-        ExcelExproter excelExproter = CodeCounterApplication.SERVICE_MANAGER.getService(ExcelExproter.class);
+        ExcelExproterAllLexems excelExproter = CodeCounterApplication.SERVICE_MANAGER.getService(ExcelExproterAllLexems.class);
 
         try {
             var file = saveFile("tokens_analysis.xlsx");
             if (file != null) {
-                excelExproter.exportWorkbook(file.getAbsolutePath(), false, fileTokensMap);
+                //excelExproter.exportWorkbook(file.getAbsolutePath(), false, fileTokensMap);
                 outputArea.appendText("\n\nФайл экспортирован в:\n" + file.getAbsolutePath());
             }
         } catch (Exception e) {
@@ -259,12 +239,12 @@ public class MainPageController {
     }
     @FXML
     protected void exportSortedToExcel() {
-        ExcelExproter excelExproter = CodeCounterApplication.SERVICE_MANAGER.getService(ExcelExproter.class);
+        ExcelExproterAllLexems excelExproter = CodeCounterApplication.SERVICE_MANAGER.getService(ExcelExproterAllLexems.class);
 
         try {
             var file = saveFile("sorted_tokens_analysis.xlsx");
             if (file != null) {
-                excelExproter.exportWorkbook(file.getAbsolutePath(), true, fileTokensMap);
+                //excelExproter.exportWorkbook(file.getAbsolutePath(), true, fileTokensMap);
                 outputArea.appendText("\n\nФайл экспортирован (по типам) в:\n" + file.getAbsolutePath());
             }
         } catch (Exception e) {
@@ -273,10 +253,10 @@ public class MainPageController {
         }
     }
     private File saveFile(String fileName){
-        if (fileTokensMap.isEmpty()){
-            outputArea.setText("Сначала выполните анализ файлов!");
-            return null;
-        }
+//        if (fileTokensMap.isEmpty()){
+//            outputArea.setText("Сначала выполните анализ файлов!");
+//            return null;
+//        }
 
         FileManager fileManager = CodeCounterApplication.SERVICE_MANAGER.getService(FileManager.class);
 
@@ -286,46 +266,5 @@ public class MainPageController {
         }
 
         return fileManager.saveFile(fileName);
-    }
-
-
-
-
-    // Вспомогательный класс для хранения файла с состоянием выбора
-    public static class FileItem {
-        private final File file;
-        private final javafx.beans.property.BooleanProperty selected;
-
-        public FileItem(File file, boolean selected) {
-            this.file = file;
-            this.selected = new javafx.beans.property.SimpleBooleanProperty(selected);
-        }
-
-        public File getFile() {
-            return file;
-        }
-
-        public boolean isSelected() {
-            return selected.get();
-        }
-
-        public void setSelected(boolean selected) {
-            this.selected.set(selected);
-        }
-
-        public javafx.beans.property.BooleanProperty selectedProperty() {
-            return selected;
-        }
-    }
-
-    // Вспомогательный класс для хранения токена с именем файла
-    private static class TokenWithFile {
-        String fileName;
-        Token token;
-
-        TokenWithFile(String fileName, Token token) {
-            this.fileName = fileName;
-            this.token = token;
-        }
     }
 }

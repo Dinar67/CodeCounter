@@ -9,6 +9,9 @@ public class CodeCounterApplication extends Application {
 
     @Override
     public void start(Stage primaryStage) throws Exception {
+        primaryStage.setMinWidth(800);
+        primaryStage.setMinHeight(600);
+
         NavigationService navService = SERVICE_MANAGER.setService(NavigationService.class, new NavigationService(primaryStage));
         FileManager fileManager = SERVICE_MANAGER.setService(FileManager.class, new FileManager(primaryStage));
         ExcelExproterAllLexems excelExproterAllLexems = SERVICE_MANAGER.setService(ExcelExproterAllLexems.class, new ExcelExproterAllLexems());

@@ -355,6 +355,7 @@ public class MainPageController {
             outputArea.setText("Сервис \"Файловый менеджер\" не зарегистрирован!");
             return null;
         }
+
         return fileManager.saveFile(fileName);
     }
 }

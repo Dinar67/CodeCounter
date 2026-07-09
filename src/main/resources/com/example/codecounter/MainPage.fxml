@@ -43,7 +43,6 @@
                     <Button fx:id="selectAllBtn" minHeight="30" mnemonicParsing="false" onMouseClicked="#selectAllFiles" prefHeight="35.0" prefWidth="150.0" text="Выбрать все" />
                     <Button fx:id="deselectAllBtn" minHeight="30" mnemonicParsing="false" onMouseClicked="#deselectAllFiles" prefHeight="35.0" prefWidth="150.0" text="Снять все" />
                     <Button fx:id="exportBtn" minHeight="30" disable="true" mnemonicParsing="false" onMouseClicked="#exportToExcel" prefHeight="35.0" prefWidth="150.0" text="Экспорт в Excel" />
-                    <Button fx:id="exportSortedBtn" minHeight="30" disable="true" mnemonicParsing="false" onMouseClicked="#exportSortedToExcel" prefHeight="35.0" prefWidth="200.0" text="Экспорт (сортировка по типу)" />
                 </children>
                 <VBox.margin>
                     <Insets top="10.0" />

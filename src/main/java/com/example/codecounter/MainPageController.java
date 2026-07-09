@@ -6,7 +6,7 @@ import LanguageLexer.LanguageToken.Token;
 import LanguageLexer.LanguageToken.TokenType;
 import LanguageLexer.Languages.JavaLanguage.JavaLanguage;
 import LanguageLexer.Lexer.RegexLexer;
-import Services.ExcelExproterAllLexems;
+import Services.ExcelAnalysisExporter;
 import Services.FileManager;
 import Services.NavigationService;
 import Services.SettingsService;
@@ -33,7 +33,6 @@ public class MainPageController {
     @FXML protected TextArea outputArea;
     @FXML protected Button analyzeBtn;
     @FXML protected Button exportBtn;
-    @FXML protected Button exportSortedBtn;
     @FXML protected Button selectAllBtn;
     @FXML protected Button deselectAllBtn;
     @FXML protected Button settingsBtn;
@@ -89,7 +88,6 @@ public class MainPageController {
         resultLb.setText("Найдено файлов: " + fileItems.size() + " (выбрано: " + getSelectedFiles().size() + ")");
 
         exportBtn.setDisable(true);
-        exportSortedBtn.setDisable(true);
     }
 
     private void setupFileListView() {
@@ -182,7 +180,6 @@ public class MainPageController {
 
         analyzeBtn.setDisable(true);
         exportBtn.setDisable(true);
-        exportSortedBtn.setDisable(true);
         analysisProgressBar.setVisible(true);
         analysisProgressBar.setProgress(0);
         progressLb.setVisible(true);
@@ -216,7 +213,6 @@ public class MainPageController {
         outputArea.setText(output);
         progressLb.setText("Готово: проанализировано " + total + " из " + total + " файлов");
         exportBtn.setDisable(false);
-        exportSortedBtn.setDisable(false);
     }
 
     // Выполняется в отдельном (не FX) потоке "analysis-worker"
@@ -294,31 +290,63 @@ public class MainPageController {
     }
 
     @FXML
-    protected void exportToExcel() {
-        ExcelExproterAllLexems excelExproter = CodeCounterApplication.SERVICE_MANAGER.getService(ExcelExproterAllLexems.class);
+    protected void exportToExcel() { runExport(); }
+
+    private void runExport() {
         try {
-            var file = saveFile("tokens_analysis.xlsx");
-            if (file != null) {
-                outputArea.appendText("\n\nФайл экспортирован в:\n" + file.getAbsolutePath());
-            }
+            var selected = getSelectedFiles();
+            if (selected.isEmpty()) throw new Exception("Нет выбранных файлов для экспорта!");
+
+            var settingsService = CodeCounterApplication.SERVICE_MANAGER.getService(SettingsService.class);
+            if (settingsService == null) throw new Exception("Сервис настроек отсутствует!");
+            var settings = settingsService.getSettings(selected.size());
+
+            var excelExporter = CodeCounterApplication.SERVICE_MANAGER.getService(ExcelAnalysisExporter.class);
+            if (excelExporter == null) throw new Exception("Сервис экспорта отсутствует!");
+
+            File target = saveFile("tokens_analysis.xlsx");
+            if (target == null) return; // пользователь отменил диалог сохранения
+
+            startExport(selected, settings, target, excelExporter);
         } catch (Exception e) {
             outputArea.appendText("\n\nОШИБКА при экспорте:\n" + e.getClass().getSimpleName() + ": " + e.getMessage());
-            e.printStackTrace();
         }
     }
 
-    @FXML
-    protected void exportSortedToExcel() {
-        ExcelExproterAllLexems excelExproter = CodeCounterApplication.SERVICE_MANAGER.getService(ExcelExproterAllLexems.class);
-        try {
-            var file = saveFile("sorted_tokens_analysis.xlsx");
-            if (file != null) {
-                outputArea.appendText("\n\nФайл экспортирован (по типам) в:\n" + file.getAbsolutePath());
-            }
-        } catch (Exception e) {
-            outputArea.appendText("\n\nОШИБКА при экспорте:\n" + e.getClass().getSimpleName() + ": " + e.getMessage());
-            e.printStackTrace();
-        }
+    private void startExport(List<File> selected, AnalysisSettings settings, File target,
+                             ExcelAnalysisExporter exporter) {
+        int total = selected.size();
+        int step = Math.max(1, total / 200);
+
+        analyzeBtn.setDisable(true);
+        exportBtn.setDisable(true);
+        analysisProgressBar.setVisible(true);
+        analysisProgressBar.setProgress(0);
+        progressLb.setVisible(true);
+        progressLb.setText("Экспортировано 0 из " + total + " файлов");
+
+        exporter.exportAsync(selected, settings, target,
+                done -> {
+                    if (done == total || done % step == 0) {
+                        Platform.runLater(() -> {
+                            analysisProgressBar.setProgress((double) done / total);
+                            progressLb.setText("Экспортировано " + done + " из " + total + " файлов");
+                        });
+                    }
+                },
+                error -> Platform.runLater(() -> {
+                    analyzeBtn.setDisable(false);
+                    exportBtn.setDisable(false);
+                    analysisProgressBar.setVisible(false);
+
+                    if (error != null) {
+                        outputArea.appendText("\n\nОШИБКА при экспорте:\n" + error.getMessage());
+                        progressLb.setText("Экспорт прерван из-за ошибки");
+                    } else {
+                        outputArea.appendText("\n\nФайл экспортирован в:\n" + target.getAbsolutePath());
+                        progressLb.setText("Готово: экспортировано " + total + " файлов");
+                    }
+                }));
     }
 
     private File saveFile(String fileName){

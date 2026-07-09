@@ -19,7 +19,9 @@ public class SettingsService implements IService {
     }
 
     public AnalysisSettings getSettings(int filesCount) {
-        return filesCount <= 100? current : new AnalysisSettings(false, current.selectedTokenTypes);
+        return filesCount <= 100
+                ? current
+                : new AnalysisSettings(false, current.showTokenList, current.selectedTokenTypes);
     }
 
     public void saveSettings(AnalysisSettings settings) {

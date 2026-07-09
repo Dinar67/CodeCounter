@@ -31,6 +31,8 @@
         <!-- Прочие настройки -->
         <CheckBox fx:id="showFileDetailsCheck"
                   text="Показывать анализ по каждому файлу (до 100 файлов)"/>
+        <CheckBox fx:id="showTokenListCheck"
+                  text="Вывести список токенов (на страницах по файлам Excel)"/>
 
         <Separator/>
 

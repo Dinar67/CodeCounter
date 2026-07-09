@@ -14,8 +14,9 @@ public class CodeCounterApplication extends Application {
 
         NavigationService navService = SERVICE_MANAGER.setService(NavigationService.class, new NavigationService(primaryStage));
         FileManager fileManager = SERVICE_MANAGER.setService(FileManager.class, new FileManager(primaryStage));
-        ExcelExproterAllLexems excelExproterAllLexems = SERVICE_MANAGER.setService(ExcelExproterAllLexems.class, new ExcelExproterAllLexems());
+        ExcelAnalysisExporter excelExproterAllLexems = SERVICE_MANAGER.setService(ExcelAnalysisExporter.class, new ExcelAnalysisExporter());
         SettingsService settingsService = SERVICE_MANAGER.setService(SettingsService.class, new SettingsService());
+        ExcelAnalysisExporter excelAnalysisExporter = SERVICE_MANAGER.setService(ExcelAnalysisExporter.class, new ExcelAnalysisExporter());
         navService.nextScene(MainPageController.class);
 
         primaryStage.show();

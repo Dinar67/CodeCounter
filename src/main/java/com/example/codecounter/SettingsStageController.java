@@ -15,6 +15,7 @@ public class SettingsStageController {
 
     @FXML private VBox tokenTypesBox;
     @FXML private CheckBox showFileDetailsCheck;
+    @FXML private CheckBox showTokenListCheck;
 
     private final ToggleGroup modeGroup = new ToggleGroup();
     private final Map<TokenType, CheckBox> typeCheckBoxes = new LinkedHashMap<>();
@@ -33,11 +34,12 @@ public class SettingsStageController {
         settingsService = CodeCounterApplication.SERVICE_MANAGER.getService(SettingsService.class);
         if(settingsService == null) return;
         var settings = settingsService.getSettings(0);
-        initSettings(settings.showFileDetails, settings.selectedTokenTypes);
+        initSettings(settings.showFileDetails, settings.showTokenList, settings.selectedTokenTypes);
     }
 
-    public void initSettings(boolean showFileDetails, Set<TokenType> selectedTypes) {
+    public void initSettings(boolean showFileDetails, boolean showTokenList, Set<TokenType> selectedTypes) {
         showFileDetailsCheck.setSelected(showFileDetails);
+        showTokenListCheck.setSelected(showTokenList);
 
         for (Map.Entry<TokenType, CheckBox> entry : typeCheckBoxes.entrySet()) {
             entry.getValue().setSelected(selectedTypes.contains(entry.getKey()));
@@ -48,18 +50,19 @@ public class SettingsStageController {
     private void onSave() {
         var newSettings = new AnalysisSettings();
         newSettings.showFileDetails = showFileDetailsCheck.isSelected();
+        newSettings.showTokenList = showTokenListCheck.isSelected();
 
         for (Map.Entry<TokenType, CheckBox> entry : typeCheckBoxes.entrySet())
             if (entry.getValue().isSelected()) newSettings.selectedTokenTypes.add(entry.getKey());
 
         settingsService.saveSettings(newSettings);
-
         close();
     }
 
     @FXML
     private void onDefault() {
         showFileDetailsCheck.setSelected(true);
+        showTokenListCheck.setSelected(false);
 
         for (Map.Entry<TokenType, CheckBox> entry : typeCheckBoxes.entrySet()) {
             entry.getValue().setSelected(entry.getKey() == TokenType.KEYWORD);

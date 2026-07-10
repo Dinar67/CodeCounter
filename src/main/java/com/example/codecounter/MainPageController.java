@@ -2,14 +2,12 @@ package com.example.codecounter;
 
 import Classes.*;
 import Interfaces.IAnalyzeOutputStrategy;
+import Interfaces.ICodeSource;
 import LanguageLexer.LanguageToken.Token;
 import LanguageLexer.LanguageToken.TokenType;
 import LanguageLexer.Languages.JavaLanguage.JavaLanguage;
 import LanguageLexer.Lexer.RegexLexer;
-import Services.ExcelAnalysisExporter;
-import Services.FileManager;
-import Services.NavigationService;
-import Services.SettingsService;
+import Services.*;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -40,6 +38,8 @@ public class MainPageController {
     @FXML protected Label progressLb;
     @FXML protected javafx.scene.control.TextField searchField;
     @FXML protected Button searchBtn;
+    @FXML protected javafx.scene.control.TextField githubUrlField;
+    @FXML protected Button githubLoadBtn;
 
     private javafx.collections.transformation.FilteredList<FileItem> filteredFileItems;
     private final boolean[] selectionSuppressFlag = new boolean[]{false};
@@ -79,13 +79,13 @@ public class MainPageController {
 
         if (javaFiles.isEmpty()) throw new Exception("В выбранной папке не найдено Java файлов!");
 
-        for (File file : javaFiles) fileItems.add(new FileItem(file, true));
+        for (File file : javaFiles) fileItems.add(new FileItem(new LocalFileSource(file), true));
 
         setupFileListView();
 
         outputArea.setText("Найдено файлов: " + fileItems.size() +
                 "\nВыберите файлы для анализа и нажмите 'Анализировать выбранные файлы'");
-        resultLb.setText("Найдено файлов: " + fileItems.size() + " (выбрано: " + getSelectedFiles().size() + ")");
+        resultLb.setText("Найдено файлов: " + fileItems.size() + " (выбрано: " + getSelectedSource().size() + ")");
 
         exportBtn.setDisable(true);
     }
@@ -110,7 +110,7 @@ public class MainPageController {
             filteredFileItems.setPredicate(item -> true);
         } else {
             String lower = query.toLowerCase();
-            filteredFileItems.setPredicate(item -> item.getFile().getName().toLowerCase().contains(lower));
+            filteredFileItems.setPredicate(item -> item.getSource().getDisplayName().toLowerCase().contains(lower));
         }
     }
 
@@ -134,16 +134,16 @@ public class MainPageController {
         updateResultLabel();
     }
 
-    private List<File> getSelectedFiles() {
-        List<File> selected = new ArrayList<>();
+    private List<ICodeSource> getSelectedSource() {
+        List<ICodeSource> selected = new ArrayList<>();
         for (FileItem item : fileItems)
-            if (item.isSelected()) selected.add(item.getFile());
+            if (item.isSelected()) selected.add(item.getSource());
         return selected;
     }
 
     private void updateResultLabel() {
         int total = fileItems.size();
-        int selected = getSelectedFiles().size();
+        int selected = getSelectedSource().size();
         resultLb.setText("Найдено файлов: " + total + " (выбрано: " + selected + ")");
     }
 
@@ -152,7 +152,7 @@ public class MainPageController {
     @FXML
     protected void analyzeFiles() {
         try {
-            var selected = getSelectedFiles();
+            var selected = getSelectedSource();
             if (selected.isEmpty()) throw new Exception("Выберите хотя бы один файл для анализа!");
             var settingsService = CodeCounterApplication.SERVICE_MANAGER.getService(SettingsService.class);
             if (settingsService == null) throw new Exception("Сервис настроек отсутствует!");
@@ -170,7 +170,7 @@ public class MainPageController {
 
     // Готовит UI и запускает фоновый поток - сам метод выполняется в FX-потоке,
     // но быстро (только подготовка), поэтому UI не блокируется
-    private void startAnalysis(List<File> selected, AnalysisSettings settings, IAnalyzeOutputStrategy strategy) {
+    private void startAnalysis(List<ICodeSource> selected, AnalysisSettings settings, IAnalyzeOutputStrategy strategy) {
         int total = selected.size();
         completedCount.set(0);
         // Ограничиваем количество обновлений UI примерно 200 штуками за весь анализ,
@@ -216,23 +216,24 @@ public class MainPageController {
     }
 
     // Выполняется в отдельном (не FX) потоке "analysis-worker"
-    private AnalysisResultData analyzeHandle(List<File> selected, AnalysisSettings settings,
+    private AnalysisResultData analyzeHandle(List<ICodeSource> selected, AnalysisSettings settings,
                                              IAnalyzeOutputStrategy strategy, int total) throws Exception {
         var result = new AnalysisResultData();
-        result.setFiles(selected);
+        result.setSources(selected);
         Set<TokenType> selectedTypes = Set.copyOf(settings.selectedTokenTypes);
 
-        int threads = Math.max(1, Runtime.getRuntime().availableProcessors());
+        boolean isRemote = !selected.isEmpty() && selected.get(0) instanceof GithubFileSource;
+        int threads = isRemote ? 20 : Math.max(1, Runtime.getRuntime().availableProcessors());
         ExecutorService executor = Executors.newFixedThreadPool(threads);
         List<Future<?>> futures = new ArrayList<>();
 
-        for (File file : selected) {
+        for (ICodeSource source : selected) {
             futures.add(executor.submit(() -> {
                 try {
-                    analyzeSingleFile(file, settings, selectedTypes, result, strategy);
+                    analyzeSingleFile(source, settings, selectedTypes, result, strategy);
                 } catch (Exception e) {
                     Platform.runLater(() ->
-                            outputArea.appendText("\nОшибка анализа " + file.getName() + ": " + e.getMessage()));
+                            outputArea.appendText("\nОшибка анализа " + source.getDisplayName() + ": " + e.getMessage()));
                 } finally {
                     reportProgress(total);
                 }
@@ -260,13 +261,13 @@ public class MainPageController {
         }
     }
 
-    private void analyzeSingleFile(File file, AnalysisSettings settings, Set<TokenType> selectedTypes,
+    private void analyzeSingleFile(ICodeSource source, AnalysisSettings settings, Set<TokenType> selectedTypes,
                                    AnalysisResultData result, IAnalyzeOutputStrategy strategy) throws Exception {
         var lexer = new RegexLexer(new JavaLanguage());
-        var code = Files.readString(file.toPath());
+        var code = source.readText();
         var tokens = lexer.tokenize(code);
 
-        var fileData = new FileAnalysisData(file);
+        var fileData = new FileAnalysisData(source);
         fileData.lineCount = (int) code.lines().count();
         fileData.nonEmptyLineCount = (int) code.lines().filter(line -> !line.strip().isEmpty()).count();
 
@@ -307,11 +308,68 @@ public class MainPageController {
     }
 
     @FXML
+    protected void loadFromGithub() {
+        String url = githubUrlField.getText();
+        if (url == null || url.isBlank()) {
+            outputArea.setText("Введите ссылку на GitHub-репозиторий!");
+            return;
+        }
+
+        var githubService = CodeCounterApplication.SERVICE_MANAGER.getService(GithubService.class);
+        if (githubService == null) { outputArea.setText("Сервис GitHub отсутствует!"); return; }
+
+        githubLoadBtn.setDisable(true);
+        searchField.clear();
+        outputArea.setText("Получение списка файлов из репозитория...");
+
+        // Списковые запросы к API быстрые (2 запроса), но всё равно сеть - лучше не блокировать FX-поток
+        Thread worker = new Thread(() -> {
+            try {
+                var ref = githubService.parseUrl(url);
+                String branch = githubService.fetchDefaultBranch(ref);
+                var remoteFiles = githubService.listJavaFiles(ref, branch);
+
+                List<FileItem> items = new ArrayList<>();
+                for (var rf : remoteFiles) {
+                    var source = new GithubFileSource(ref.owner(), ref.repo(), branch, rf.path(), githubService);
+                    items.add(new FileItem(source, true));
+                }
+
+                Platform.runLater(() -> onGithubFilesLoaded(items, ref, branch));
+            } catch (Exception e) {
+                Platform.runLater(() -> {
+                    githubLoadBtn.setDisable(false);
+                    outputArea.setText("Ошибка: " + e.getMessage());
+                });
+            }
+        }, "github-list-worker");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    private void onGithubFilesLoaded(List<FileItem> items, GithubService.RepoRef ref, String branch) {
+        githubLoadBtn.setDisable(false);
+        fileItems.setAll(items);
+
+        if (items.isEmpty()) {
+            outputArea.setText("В репозитории " + ref.owner() + "/" + ref.repo() + " не найдено .java файлов");
+            return;
+        }
+
+        setupFileListView();
+        outputArea.setText("Найдено файлов: " + items.size()
+                + " (репозиторий " + ref.owner() + "/" + ref.repo() + ", ветка " + branch + ")"
+                + "\nВыберите файлы для анализа и нажмите 'Анализировать выбранные файлы'");
+        resultLb.setText("Найдено файлов: " + items.size() + " (выбрано: " + getSelectedSource().size() + ")");
+        exportBtn.setDisable(true);
+    }
+
+    @FXML
     protected void exportToExcel() { runExport(); }
 
     private void runExport() {
         try {
-            var selected = getSelectedFiles();
+            var selected = getSelectedSource();
             if (selected.isEmpty()) throw new Exception("Нет выбранных файлов для экспорта!");
 
             var settingsService = CodeCounterApplication.SERVICE_MANAGER.getService(SettingsService.class);
@@ -330,7 +388,7 @@ public class MainPageController {
         }
     }
 
-    private void startExport(List<File> selected, AnalysisSettings settings, File target,
+    private void startExport(List<ICodeSource> selected, AnalysisSettings settings, File target,
                              ExcelAnalysisExporter exporter) {
         int total = selected.size();
         int step = Math.max(1, total / 200);

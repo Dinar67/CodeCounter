@@ -3,6 +3,7 @@ package Services;
 import Classes.AnalysisResultData;
 import Classes.FileAnalysisData;
 import Classes.AnalysisSettings;
+import Interfaces.ICodeSource;
 import Interfaces.IService;
 import LanguageLexer.LanguageToken.Token;
 import LanguageLexer.LanguageToken.TokenType;
@@ -35,7 +36,7 @@ public class ExcelAnalysisExporter implements IService {
      * onFinished вызывается один раз по завершении: null при успехе, исключение при ошибке.
      * Оба коллбэка не переносят выполнение на FX-поток сами - это обязан сделать вызывающий код.
      */
-    public void exportAsync(List<File> selected, AnalysisSettings settings, File targetFile,
+    public void exportAsync(List<ICodeSource> selected, AnalysisSettings settings, File targetFile,
                             IntConsumer onProgress, Consumer<Exception> onFinished) {
         Thread worker = new Thread(() -> {
             try {
@@ -49,19 +50,19 @@ public class ExcelAnalysisExporter implements IService {
         worker.start();
     }
 
-    private void export(List<File> selected, AnalysisSettings settings, File targetFile,
+    private void export(List<ICodeSource> selected, AnalysisSettings settings, File targetFile,
                         IntConsumer onProgress) throws Exception {
 
         // Уже учитывает лимит в 100 файлов - см. SettingsService.getSettings(filesCount)
         boolean perFileSheets = settings.showFileDetails;
 
         var aggregate = new AnalysisResultData();
-        aggregate.setFiles(selected);
+        aggregate.setSources(selected);
         Set<TokenType> selectedTypes = Set.copyOf(settings.selectedTokenTypes);
 
         // Заполняется только если нужны страницы по файлам (то есть файлов <=100) -
         // в этом случае держать все FileAnalysisData в памяти одновременно тривиально дёшево
-        Map<File, FileAnalysisData> perFileData = perFileSheets
+        Map<ICodeSource, FileAnalysisData> perFileData = perFileSheets
                 ? Collections.synchronizedMap(new LinkedHashMap<>())
                 : null;
 
@@ -72,7 +73,7 @@ public class ExcelAnalysisExporter implements IService {
         ExecutorService executor = Executors.newFixedThreadPool(threads);
         List<Future<?>> futures = new ArrayList<>();
 
-        for (File file : selected) {
+        for (ICodeSource file : selected) {
             futures.add(executor.submit(() -> {
                 analyzeFileForExport(file, selectedTypes, aggregate, perFileData, settings);
                 int done = completed.incrementAndGet();
@@ -93,16 +94,16 @@ public class ExcelAnalysisExporter implements IService {
         writeWorkbook(aggregate, perFileData, settings, targetFile);
     }
 
-    private void analyzeFileForExport(File file, Set<TokenType> selectedTypes,
+    private void analyzeFileForExport(ICodeSource source, Set<TokenType> selectedTypes,
                                       AnalysisResultData aggregate,
-                                      Map<File, FileAnalysisData> perFileData,
+                                      Map<ICodeSource, FileAnalysisData> perFileData,
                                       AnalysisSettings settings) {
         try {
             var lexer = new RegexLexer(new JavaLanguage());
-            var code = Files.readString(file.toPath());
+            var code = source.readText();
             var tokens = lexer.tokenize(code);
 
-            var fileData = new FileAnalysisData(file);
+            var fileData = new FileAnalysisData(source);
             fileData.lineCount = (int) code.lines().count();
             fileData.nonEmptyLineCount = (int) code.lines().filter(l -> !l.strip().isEmpty()).count();
 
@@ -125,10 +126,10 @@ public class ExcelAnalysisExporter implements IService {
             // Сырые "tokens" после этого метода становятся недостижимы и уходят под GC.
             // Если нужен список токенов - он будет пересчитан заново при записи страницы файла.
             if (perFileData != null) {
-                perFileData.put(file, fileData);
+                perFileData.put(source, fileData);
             }
         } catch (Exception e) {
-            throw new RuntimeException("Файл " + file.getName() + ": " + e.getMessage(), e);
+            throw new RuntimeException("Файл " + source.getDisplayName() + ": " + e.getMessage(), e);
         }
     }
     private boolean checkCloseBracket(String val) {
@@ -152,15 +153,15 @@ public class ExcelAnalysisExporter implements IService {
 
     // ==== Запись книги ====
 
-    private void writeWorkbook(AnalysisResultData aggregate, Map<File, FileAnalysisData> perFileData,
+    private void writeWorkbook(AnalysisResultData aggregate, Map<ICodeSource, FileAnalysisData> perFileData,
                                AnalysisSettings settings, File targetFile) throws Exception {
         try (Workbook workbook = new XSSFWorkbook()) {
             writeGeneralSheet(workbook, aggregate, settings);
 
             if (perFileData != null) {
                 Set<String> usedNames = new HashSet<>();
-                for (Map.Entry<File, FileAnalysisData> entry : perFileData.entrySet()) {
-                    String sheetName = uniqueSheetName(entry.getKey().getName(), usedNames);
+                for (Map.Entry<ICodeSource, FileAnalysisData> entry : perFileData.entrySet()) {
+                    String sheetName = uniqueSheetName(entry.getKey().getDisplayName(), usedNames);
                     writeFileSheet(workbook, sheetName, entry.getValue(), settings);
                 }
             }
@@ -177,7 +178,7 @@ public class ExcelAnalysisExporter implements IService {
         Sheet sheet = workbook.createSheet("Общая информация");
         int[] rowIdx = {0};
 
-        appendRow(sheet, rowIdx, "Файлов: " + aggregate.getFiles().size());
+        appendRow(sheet, rowIdx, "Файлов: " + aggregate.getSources().size());
         appendRow(sheet, rowIdx, "Строк: " + aggregate.getLineCount()
                 + " (непустых: " + aggregate.getNonEmptyLineCount() + ")");
 
@@ -208,7 +209,7 @@ public class ExcelAnalysisExporter implements IService {
         Sheet sheet = workbook.createSheet(sheetName);
         int[] rowIdx = {0};
 
-        appendRow(sheet, rowIdx, "Файл: " + fileData.file.getName());
+        appendRow(sheet, rowIdx, "Файл: " + fileData.source.getDisplayName());
         appendRow(sheet, rowIdx, "Строк: " + fileData.lineCount
                 + " (непустых: " + fileData.nonEmptyLineCount + ")");
 
@@ -230,7 +231,7 @@ public class ExcelAnalysisExporter implements IService {
 
         if (settings.showTokenList) {
             rowIdx[0]++;
-            writeTokenListSection(sheet, rowIdx, fileData.file);
+            writeTokenListSection(sheet, rowIdx, fileData.source);
         }
 
         sheet.autoSizeColumn(0);
@@ -239,11 +240,11 @@ public class ExcelAnalysisExporter implements IService {
     // Список токенов "как их вернул лексер" - тип и значение подряд, каждый на своей строке.
     // Файл читается и токенизируется заново здесь (а не хранится с первого прохода) -
     // это допустимо, т.к. страницы по файлам создаются только когда файлов <=100.
-    private void writeTokenListSection(Sheet sheet, int[] rowIdx, File file) throws Exception {
+    private void writeTokenListSection(Sheet sheet, int[] rowIdx, ICodeSource source) throws Exception {
         appendRow(sheet, rowIdx, "Список токенов:");
 
         var lexer = new RegexLexer(new JavaLanguage());
-        var code = Files.readString(file.toPath());
+        var code = source.readText();
         var tokens = lexer.tokenize(code);
 
         for (Token token : tokens) {

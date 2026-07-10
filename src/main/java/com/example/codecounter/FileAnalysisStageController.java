@@ -2,6 +2,7 @@ package com.example.codecounter;
 
 import Classes.AnalysisSettings;
 import Classes.CompactAnalyzeOutputStrategy;
+import Interfaces.ICodeSource;
 import LanguageLexer.LanguageToken.Token;
 import LanguageLexer.LanguageToken.TokenType;
 import LanguageLexer.Languages.JavaLanguage.JavaLanguage;
@@ -21,17 +22,17 @@ public class FileAnalysisStageController {
     @FXML protected TextArea analysisTextArea;
     @FXML protected TextArea codeTextArea;
 
-    public void transferData(File file) {
+    public void transferData(ICodeSource codeSource) {
         try {
-            analyze(file);
+            analyze(codeSource);
         } catch (Exception e) {
             analysisTextArea.setText("Ошибка анализа: " + e.getMessage());
             codeTextArea.setText("");
         }
     }
 
-    private void analyze(File file) throws Exception {
-        String code = Files.readString(file.toPath());
+    private void analyze(ICodeSource codeSource) throws Exception {
+        String code = codeSource.readText();
         codeTextArea.setText(code);
 
         var settingsService = CodeCounterApplication.SERVICE_MANAGER.getService(SettingsService.class);
@@ -59,7 +60,7 @@ public class FileAnalysisStageController {
         int nonEmptyLines = (int) code.lines().filter(l -> !l.strip().isEmpty()).count();
 
         StringBuilder sb = new StringBuilder();
-        sb.append("Файл: ").append(file.getName()).append("\n");
+        sb.append("Файл: ").append(codeSource.getDisplayName()).append("\n");
         sb.append("Строк: ").append(lines).append(" (непустых: ").append(nonEmptyLines).append(")\n");
 
         // Переиспользуем форматирование из компактной стратегии - логика вывода одна и та же

@@ -24,7 +24,7 @@ public class CompactAnalyzeOutputStrategy implements IAnalyzeOutputStrategy {
     public String finalizeOutput(AnalysisResultData aggregate) {
         StringBuilder sb = new StringBuilder();
 
-        sb.append("Файлов: ").append(aggregate.getFiles().size()).append("\n");
+        sb.append("Файлов: ").append(aggregate.getSources().size()).append("\n");
         sb.append("Строк: ").append(aggregate.getLineCount())
                 .append(" (непустых: ").append(aggregate.getNonEmptyLineCount()).append(")\n");
 

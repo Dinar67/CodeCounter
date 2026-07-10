@@ -1,5 +1,6 @@
 package Classes;
 
+import Interfaces.ICodeSource;
 import LanguageLexer.LanguageToken.TokenType;
 
 import java.io.File;
@@ -9,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class DetailedAnalyzeOutputStrategy extends CompactAnalyzeOutputStrategy {
 
     // Храним только готовый текст по файлу, а не токены - это на порядки меньше по памяти
-    private final ConcurrentHashMap<File, String> fileBlocks = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<ICodeSource, String> fileBlocks = new ConcurrentHashMap<>();
 
     public DetailedAnalyzeOutputStrategy(AnalysisSettings settings) {
         super(settings);
@@ -19,7 +20,7 @@ public class DetailedAnalyzeOutputStrategy extends CompactAnalyzeOutputStrategy 
     public void onFileAnalyzed(FileAnalysisData fileData) {
         StringBuilder block = new StringBuilder();
         block.append("----------------------------------------\n");
-        block.append("ФАЙЛ: ").append(fileData.file.getName()).append("\n");
+        block.append("ФАЙЛ: ").append(fileData.source.getDisplayName()).append("\n");
         block.append("----------------------------------------\n");
         block.append("Строк: ").append(fileData.lineCount)
                 .append(" (непустых: ").append(fileData.nonEmptyLineCount).append(")\n");
@@ -27,7 +28,7 @@ public class DetailedAnalyzeOutputStrategy extends CompactAnalyzeOutputStrategy 
         appendFileCounts(block, fileData.tokenTypeCount, fileData.tokenCount);
         block.append("\n");
 
-        fileBlocks.put(fileData.file, block.toString());
+        fileBlocks.put(fileData.source, block.toString());
     }
 
     @Override
@@ -38,7 +39,7 @@ public class DetailedAnalyzeOutputStrategy extends CompactAnalyzeOutputStrategy 
         sb.append("=== АНАЛИЗ ПО ФАЙЛАМ ===\n\n");
 
         // Восстанавливаем исходный порядок файлов, даже если анализ шёл параллельно
-        for (File file : aggregate.getFiles()) {
+        for (ICodeSource file : aggregate.getSources()) {
             String block = fileBlocks.get(file);
             if (block != null) sb.append(block);
         }

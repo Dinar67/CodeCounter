@@ -18,6 +18,7 @@ import javafx.scene.layout.HBox;
 import javafx.stage.Stage;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -149,7 +150,7 @@ public class FileItemCell extends ListCell<FileItem> {
         } else {
             currentItem = item;
             selectCb.selectedProperty().bindBidirectional(item.selectedProperty());
-            pathLb.setText(item.getFile().getName());
+            pathLb.setText(Path.of(item.getSource().getDisplayName()).getFileName().toString());
             setGraphic(hbox);
         }
     }
@@ -159,7 +160,7 @@ public class FileItemCell extends ListCell<FileItem> {
         Scene scene = new Scene(fxmlLoader.load());
         Stage stage = new Stage();
         FileAnalysisStageController controller = fxmlLoader.getController();
-        controller.transferData(currentItem.getFile());
+        controller.transferData(currentItem.getSource());
         stage.setScene(scene);
         stage.show();
     }

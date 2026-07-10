@@ -1,6 +1,7 @@
 package Classes;
 
 import Interfaces.IAnalyzeOutputStrategy;
+import LanguageLexer.LanguageToken.Token;
 import LanguageLexer.LanguageToken.TokenType;
 
 import java.util.HashMap;
@@ -71,9 +72,29 @@ public class CompactAnalyzeOutputStrategy implements IAnalyzeOutputStrategy {
             sb.append(type).append(" (").append(typeTotal).append(" шт.):\n");
             values.entrySet().stream()
                     .sorted((a, b) -> Long.compare(b.getValue().sum(), a.getValue().sum()))
-                    .forEach(e -> sb.append(String.format("  %-25s %d\n", e.getKey(), e.getValue().sum())));
+                    .forEach(e -> {
+                        if(!(settings.mergeBracketВelimiters && checkCloseBracket(e.getKey())))
+                            sb.append(String.format("  %-25s %d\n", mergeBracketDelimetrs(e.getKey(), settings), e.getValue().sum()));
+                    });
             sb.append("\n");
         }
+    }
+    private boolean checkCloseBracket(String val) {
+        return val.equals(")") || val.equals("]") || val.equals("}");
+    }
+
+    private String mergeBracketDelimetrs(String val, AnalysisSettings settings){
+        HashMap<String, String> brackets = new HashMap<>() {{
+            put("(", ")");
+            put("[", "]");
+            put("{", "}");
+        }};
+
+        if(settings.mergeBracketВelimiters && brackets.containsKey(val)){
+            var part = brackets.get(val);
+            return val + part;
+        }
+        return val;
     }
 
     // ==== Версия для одного файла (синхронно, один поток, обычные HashMap) ====

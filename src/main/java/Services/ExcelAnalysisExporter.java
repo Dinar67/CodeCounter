@@ -8,6 +8,7 @@ import LanguageLexer.LanguageToken.Token;
 import LanguageLexer.LanguageToken.TokenType;
 import LanguageLexer.Languages.JavaLanguage.JavaLanguage;
 import LanguageLexer.Lexer.RegexLexer;
+import com.example.codecounter.CodeCounterApplication;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -73,7 +74,7 @@ public class ExcelAnalysisExporter implements IService {
 
         for (File file : selected) {
             futures.add(executor.submit(() -> {
-                analyzeFileForExport(file, selectedTypes, aggregate, perFileData);
+                analyzeFileForExport(file, selectedTypes, aggregate, perFileData, settings);
                 int done = completed.incrementAndGet();
                 if (onProgress != null) onProgress.accept(done);
             }));
@@ -94,7 +95,8 @@ public class ExcelAnalysisExporter implements IService {
 
     private void analyzeFileForExport(File file, Set<TokenType> selectedTypes,
                                       AnalysisResultData aggregate,
-                                      Map<File, FileAnalysisData> perFileData) {
+                                      Map<File, FileAnalysisData> perFileData,
+                                      AnalysisSettings settings) {
         try {
             var lexer = new RegexLexer(new JavaLanguage());
             var code = Files.readString(file.toPath());
@@ -105,16 +107,17 @@ public class ExcelAnalysisExporter implements IService {
             fileData.nonEmptyLineCount = (int) code.lines().filter(l -> !l.strip().isEmpty()).count();
 
             for (Token token : tokens) {
+                if(settings.mergeBracketВelimiters && checkCloseBracket(token.getValue())) continue;
                 aggregate.addTokenType(token.getType());
                 fileData.tokenTypeCount.merge(token.getType(), 1, Integer::sum);
             }
 
             for (Token token : tokens) {
-                if (!selectedTypes.contains(token.getType())) continue;
+                if (!selectedTypes.contains(token.getType()) || (settings.mergeBracketВelimiters && checkCloseBracket(token.getValue()))) continue;
                 aggregate.addLexeme(token.getType(), token.getValue());
                 fileData.tokenCount
                         .computeIfAbsent(token.getType(), k -> new HashMap<>())
-                        .merge(token.getValue(), 1, Integer::sum);
+                        .merge(mergeBracketDelimetrs(token.getValue(), settings), 1, Integer::sum);
             }
 
             aggregate.addLines(fileData.lineCount, fileData.nonEmptyLineCount);
@@ -128,13 +131,31 @@ public class ExcelAnalysisExporter implements IService {
             throw new RuntimeException("Файл " + file.getName() + ": " + e.getMessage(), e);
         }
     }
+    private boolean checkCloseBracket(String val) {
+        return val.equals(")") || val.equals("]") || val.equals("}");
+    }
+
+    private String mergeBracketDelimetrs(String val, AnalysisSettings settings){
+        HashMap<String, String> brackets = new HashMap<>() {{
+            put("(", ")");
+            put("[", "]");
+            put("{", "}");
+        }};
+
+        if(settings.mergeBracketВelimiters && brackets.containsKey(val)){
+            var part = brackets.get(val);
+            return val + part;
+        }
+        return val;
+    }
+
 
     // ==== Запись книги ====
 
     private void writeWorkbook(AnalysisResultData aggregate, Map<File, FileAnalysisData> perFileData,
                                AnalysisSettings settings, File targetFile) throws Exception {
         try (Workbook workbook = new XSSFWorkbook()) {
-            writeGeneralSheet(workbook, aggregate);
+            writeGeneralSheet(workbook, aggregate, settings);
 
             if (perFileData != null) {
                 Set<String> usedNames = new HashSet<>();
@@ -152,7 +173,7 @@ public class ExcelAnalysisExporter implements IService {
 
     // ==== Страница общей статистики (тот же формат, что в обычном компактном выводе) ====
 
-    private void writeGeneralSheet(Workbook workbook, AnalysisResultData aggregate) {
+    private void writeGeneralSheet(Workbook workbook, AnalysisResultData aggregate, AnalysisSettings settings) {
         Sheet sheet = workbook.createSheet("Общая информация");
         int[] rowIdx = {0};
 
@@ -175,7 +196,7 @@ public class ExcelAnalysisExporter implements IService {
 
         if (!aggregate.getTokenCount().isEmpty()) {
             rowIdx[0]++;
-            appendLexemeListConcurrent(sheet, rowIdx, aggregate.getTokenCount());
+            appendLexemeListConcurrent(sheet, rowIdx, aggregate.getTokenCount(), settings);
         }
         sheet.autoSizeColumn(0);
     }
@@ -251,7 +272,7 @@ public class ExcelAnalysisExporter implements IService {
     }
 
     private void appendLexemeListConcurrent(Sheet sheet, int[] rowIdx,
-                                            Map<TokenType, ConcurrentHashMap<String, LongAdder>> groups) {
+                                            Map<TokenType, ConcurrentHashMap<String, LongAdder>> groups, AnalysisSettings settings) {
         for (String typeName : TYPE_ORDER) {
             TokenType type;
             try { type = TokenType.valueOf(typeName); }
@@ -264,7 +285,10 @@ public class ExcelAnalysisExporter implements IService {
 
             values.entrySet().stream()
                     .sorted((a, b) -> Long.compare(b.getValue().sum(), a.getValue().sum()))
-                    .forEach(e -> appendRow(sheet, rowIdx, "  " + e.getKey() + ": " + e.getValue().sum()));
+                    .forEach(e -> {
+                        if(!(settings.mergeBracketВelimiters && checkCloseBracket(e.getKey())))
+                            appendRow(sheet, rowIdx, "  " + mergeBracketDelimetrs(e.getKey(), settings) + ": ", e.getValue().sum());
+                    });
             rowIdx[0]++;
         }
     }

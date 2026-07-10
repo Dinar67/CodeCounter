@@ -33,6 +33,8 @@
                   text="Показывать анализ по каждому файлу (до 100 файлов)"/>
         <CheckBox fx:id="showTokenListCheck"
                   text="Вывести список токенов (на страницах по файлам Excel)"/>
+        <CheckBox fx:id="mergeBracketВelimitersCheck" wrapText="true"
+                  text="Считать откр. и закр. скобки одним токеном"/>
 
         <Separator/>
 

@@ -231,8 +231,6 @@ public class MainPageController {
                 try {
                     analyzeSingleFile(file, settings, selectedTypes, result, strategy);
                 } catch (Exception e) {
-                    // Раньше тут был прямой outputArea.setText(...) из потока executor'а -
-                    // это некорректно, JavaFX запрещает трогать UI не из FX-потока
                     Platform.runLater(() ->
                             outputArea.appendText("\nОшибка анализа " + file.getName() + ": " + e.getMessage()));
                 } finally {
@@ -273,20 +271,39 @@ public class MainPageController {
         fileData.nonEmptyLineCount = (int) code.lines().filter(line -> !line.strip().isEmpty()).count();
 
         for (Token token : tokens) {
+            if(settings.mergeBracketВelimiters && checkCloseBracket(token)) continue;
             result.addTokenType(token.getType());
             fileData.tokenTypeCount.merge(token.getType(), 1, Integer::sum);
         }
 
         for (Token token : tokens) {
-            if (!selectedTypes.contains(token.getType())) continue;
+            if (!selectedTypes.contains(token.getType()) || (settings.mergeBracketВelimiters && checkCloseBracket(token))) continue;
             result.addLexeme(token.getType(), token.getValue());
+
             fileData.tokenCount
                     .computeIfAbsent(token.getType(), k -> new HashMap<>())
-                    .merge(token.getValue(), 1, Integer::sum);
+                    .merge(mergeBracketDelimetrs(token, settings), 1, Integer::sum);
         }
 
         result.addLines(fileData.lineCount, fileData.nonEmptyLineCount);
         strategy.onFileAnalyzed(fileData);
+    }
+    private boolean checkCloseBracket(Token token) {
+        return token.getValue().equals(")") || token.getValue().equals("]") || token.getValue().equals("}");
+    }
+
+    private String mergeBracketDelimetrs(Token token, AnalysisSettings settings){
+        HashMap<String, String> brackets = new HashMap<>() {{
+            put("(", ")");
+            put("[", "]");
+            put("{", "}");
+        }};
+
+        if(settings.mergeBracketВelimiters && brackets.containsKey(token.getValue())){
+            var part = brackets.get(token.getValue());
+            return token.getValue() + part;
+        }
+        return token.getValue();
     }
 
     @FXML

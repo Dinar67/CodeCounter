@@ -16,7 +16,7 @@ public class CodeCounterApplication extends Application {
         FileManager fileManager = SERVICE_MANAGER.setService(FileManager.class, new FileManager(primaryStage));
         ExcelAnalysisExporter excelExproterAllLexems = SERVICE_MANAGER.setService(ExcelAnalysisExporter.class, new ExcelAnalysisExporter());
         SettingsService settingsService = SERVICE_MANAGER.setService(SettingsService.class, new SettingsService());
-        ExcelAnalysisExporter excelAnalysisExporter = SERVICE_MANAGER.setService(ExcelAnalysisExporter.class, new ExcelAnalysisExporter());
+        ExcelAnalysisExporter excelAnalysisExporter2 = SERVICE_MANAGER.setService(ExcelAnalysisExporter.class, new ExcelAnalysisExporter());
         navService.nextScene(MainPageController.class);
 
         primaryStage.show();

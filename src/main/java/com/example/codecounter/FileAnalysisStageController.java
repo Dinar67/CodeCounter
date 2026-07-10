@@ -46,11 +46,12 @@ public class FileAnalysisStageController {
         HashMap<TokenType, HashMap<String, Integer>> tokenCount = new HashMap<>();
 
         for (Token token : tokens) {
+            if(settings.mergeBracketВelimiters && checkCloseBracket(token)) continue;
             tokenTypeCount.merge(token.getType(), 1, Integer::sum);
 
             if (selectedTypes.contains(token.getType())) {
                 tokenCount.computeIfAbsent(token.getType(), k -> new HashMap<>())
-                        .merge(token.getValue(), 1, Integer::sum);
+                        .merge(mergeBracketDelimetrs(token, settings), 1, Integer::sum);
             }
         }
 
@@ -66,5 +67,23 @@ public class FileAnalysisStageController {
         strategy.appendCounts(sb, tokenTypeCount, tokenCount);
 
         analysisTextArea.setText(sb.toString());
+    }
+
+    private boolean checkCloseBracket(Token token) {
+        return token.getValue().equals(")") || token.getValue().equals("]") || token.getValue().equals("}");
+    }
+
+    private String mergeBracketDelimetrs(Token token, AnalysisSettings settings){
+        HashMap<String, String> brackets = new HashMap<>() {{
+            put("(", ")");
+            put("[", "]");
+            put("{", "}");
+        }};
+
+        if(settings.mergeBracketВelimiters && brackets.containsKey(token.getValue())){
+            var part = brackets.get(token.getValue());
+            return token.getValue() + part;
+        }
+        return token.getValue();
     }
 }

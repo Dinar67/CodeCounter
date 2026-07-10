@@ -1,21 +1,19 @@
 package Classes;
 
+import Interfaces.ICodeSource;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 
-import java.io.File;
-import java.util.function.Consumer;
-
 public class FileItem {
-    private final File file;
+    private final ICodeSource source;
     private final BooleanProperty selected = new SimpleBooleanProperty(false);
 
-    public FileItem(File file, boolean value) {
-        this.file = file;
+    public FileItem(ICodeSource source, boolean value) {
+        this.source = source;
         selected.set(value);
     }
 
-    public File getFile() { return file; }
+    public ICodeSource getSource() { return source; }
 
     public BooleanProperty selectedProperty() { return selected; }
     public boolean isSelected() { return selected.get(); }

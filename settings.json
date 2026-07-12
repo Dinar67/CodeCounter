@@ -1,0 +1,8 @@
+{
+  "showFileDetails": true,
+  "showTokenList": false,
+  "mergeBracketВelimiters": true,
+  "selectedTokenTypes": [
+    "KEYWORD"
+  ]
+}

@@ -4,7 +4,11 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.VBox?>
+
+<?import javafx.scene.layout.AnchorPane?>
+
 <ScrollPane fitToWidth="true" fitToHeight="true"
+            stylesheets="@style.css"
             xmlns="http://javafx.com/javafx"
             xmlns:fx="http://javafx.com/fxml"
             fx:controller="com.example.codecounter.SettingsStageController">
@@ -12,15 +16,15 @@
     <VBox spacing="12" prefWidth="400">
         <padding><Insets top="20" right="20" bottom="20" left="20"/></padding>
 
-        <Label text="Настройки анализа" style="-fx-font-size: 18; -fx-font-weight: bold;"/>
+        <Label text="Настройки анализа" style="-fx-font-size: 18; -fx-font-weight: bold;" styleClass="settings-title"/>
 
         <Separator/>
 
         <!-- Режим анализа -->
-        <Label text="Режим анализа:"/>
+        <Label text="Режим анализа:" styleClass="settings-label"/>
 
         <!-- Чекбоксы типов токенов — заполняются динамически в контроллере -->
-        <Label text="Выберите типы лексем для анализа:"/>
+        <Label text="Выберите типы лексем для анализа:" styleClass="settings-label"/>
 
         <VBox fx:id="tokenTypesBox" spacing="5">
             <padding><Insets left="15"/></padding>
@@ -39,13 +43,14 @@
         <Separator/>
 
         <!-- Кнопки -->
+
         <HBox spacing="10">
             <Button fx:id="saveBtn"
                     text="Сохранить"
                     onAction="#onSave"
-                    style="-fx-background-color: #4CAF50; -fx-text-fill: white;"/>
-            <Button text="По умолчанию" onAction="#onDefault"/>
-            <Button text="Отмена" onAction="#onCancel"/>
+                    style="-fx-background-color: #4CAF50; -fx-text-fill: white;" styleClass="btn-save"/>
+            <Button text="По умолчанию" onAction="#onDefault" styleClass="btn-default"/>
+            <Button text="Отмена" onAction="#onCancel" styleClass="btn-cancel"/>
         </HBox>
 
     </VBox>

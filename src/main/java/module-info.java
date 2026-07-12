@@ -14,6 +14,7 @@ module com.example.codecounter {
     requires org.apache.commons.collections4;
     requires java.desktop;
     requires com.google.gson;
+    requires static org.apache.logging.log4j;
 
     opens com.example.codecounter to javafx.fxml;
     opens images to javafx.fxml, javafx.graphics;
